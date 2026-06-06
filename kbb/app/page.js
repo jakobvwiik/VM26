@@ -566,6 +566,8 @@ function Admin({ supabase, matches, rules, bonusRules, profiles, allPreds, leade
     await supabase.from("double_stages").update({ stages: next }).eq("id",1); reload();
   }
   async function setKoTeam(id,field,val){ await supabase.from("matches").update({[field]:val}).eq("id",id); reload(); }
+  // Vis valgt lag for én side hvis det er et ekte lag (ikke placeholder som "R16 M1 (borte)")
+  const sideTeam = name => (name && !/\(|TBD|TBA/i.test(name)) ? name : "";
   async function editMatch(id,field,val){ await supabase.from("matches").update({[field]:val}).eq("id",id); reload(); }
   async function delMatch(id){ if(confirm("Slette denne kampen?")){ await supabase.from("matches").delete().eq("id",id); reload(); } }
   async function addMatch(){ if(!nm.home||!nm.away){alert("Lag er påkrevd.");return;} const n=Math.max(0,...matches.map(m=>m.match_no))+1; await supabase.from("matches").insert({match_no:n,...nm}); setNm({stage:nm.stage,match_date:"",match_time:"",home:"",away:""}); reload(); }
@@ -631,13 +633,13 @@ function Admin({ supabase, matches, rules, bonusRules, profiles, allPreds, leade
           <div className="match" key={m.id} style={{gridTemplateColumns:"1fr"}}>
             <div style={{textAlign:"center",fontSize:11,color:"var(--mut)",textTransform:"uppercase",marginBottom:4}}>{m.stage} · {m.match_date}</div>
             <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:"center"}}>
-              <select className="inp" style={{flex:1,minWidth:110}} value={teamsSet(m)?m.home:""} onChange={e=>setKoTeam(m.id,"home",e.target.value)}><option value="">— lag —</option>{teamList.map(t=><option key={t} value={t}>{teamLabel(t)}</option>)}</select>
+              <select className="inp" style={{flex:1,minWidth:110}} value={sideTeam(m.home)} onChange={e=>setKoTeam(m.id,"home",e.target.value)}><option value="">— lag —</option>{teamList.map(t=><option key={t} value={t}>{teamLabel(t)}</option>)}</select>
               <div className="scoreboxes">
                 <input className="sb" inputMode="numeric" defaultValue={m.result_home??""} onBlur={e=>setResult(m.id,"h",e.target.value)}/>
                 <span style={{color:"var(--mut)"}}>–</span>
                 <input className="sb" inputMode="numeric" defaultValue={m.result_away??""} onBlur={e=>setResult(m.id,"a",e.target.value)}/>
               </div>
-              <select className="inp" style={{flex:1,minWidth:110}} value={teamsSet(m)?m.away:""} onChange={e=>setKoTeam(m.id,"away",e.target.value)}><option value="">— lag —</option>{teamList.map(t=><option key={t} value={t}>{teamLabel(t)}</option>)}</select>
+              <select className="inp" style={{flex:1,minWidth:110}} value={sideTeam(m.away)} onChange={e=>setKoTeam(m.id,"away",e.target.value)}><option value="">— lag —</option>{teamList.map(t=><option key={t} value={t}>{teamLabel(t)}</option>)}</select>
             </div>
           </div>
         ) : (
