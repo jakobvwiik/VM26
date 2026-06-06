@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../lib/supabase";
-import { APP_NAME, ADMIN_EMAIL } from "../../lib/config";
+import { APP_NAME, isAdminEmail, VIPPS_NUMBER } from "../../lib/config";
 
 export default function AuthPage() {
   const supabase = createClient();
@@ -27,7 +27,7 @@ export default function AuthPage() {
         if (!name.trim() || !email.trim() || pass.length < 6) {
           setMsg("Navn, e-post og passord med minst 6 tegn er påkrevd."); setBusy(false); return;
         }
-        const isAdmin = email.trim().toLowerCase() === ADMIN_EMAIL;
+        const isAdmin = isAdminEmail(email);
         if (!isAdmin && !paid) {
           setMsg("Du må bekrefte at du har sendt 200 NOK i innskudd til Henrik før du blir med."); setBusy(false); return;
         }
@@ -90,11 +90,17 @@ export default function AuthPage() {
           <input className="inp" type="password" value={pass} onChange={e => setPass(e.target.value)}
             placeholder="minst 6 tegn" onKeyDown={e => e.key === "Enter" && submit()} /></div>
 
-        {mode === "register" && email.trim().toLowerCase() !== ADMIN_EMAIL && (
-          <div className="field">
-            <label style={{ display: "flex", gap: 9, alignItems: "flex-start", cursor: "pointer", color: "var(--ink)" }}>
-              <input type="checkbox" checked={paid} onChange={e => setPaid(e.target.checked)} style={{ marginTop: 2, width: "auto" }} />
-              <span>Jeg bekrefter at jeg har sendt <strong style={{ color: "var(--gold)" }}>200 NOK</strong> i innskudd til Henrik. <span style={{ color: "var(--mut)" }}>(Påkrevd for å bli med.)</span></span>
+        {mode === "register" && !isAdminEmail(email) && (
+          <div style={{ background: "rgba(255,206,58,.07)", border: "1px solid #6a5410", borderRadius: 12, padding: 14, marginBottom: 14 }}>
+            <div style={{ fontSize: 14, lineHeight: 1.55, marginBottom: 12 }}>
+              Innskuddet er <strong style={{ color: "var(--gold)" }}>200 kr</strong>. Vipps til <strong style={{ color: "var(--gold)" }}>{VIPPS_NUMBER}</strong> før du blir med.
+            </div>
+            <label style={{ display: "flex", gap: 12, alignItems: "flex-start", cursor: "pointer", color: "var(--ink)" }}>
+              <input type="checkbox" checked={paid} onChange={e => setPaid(e.target.checked)}
+                style={{ width: 26, height: 26, flexShrink: 0, accentColor: "var(--teal)", cursor: "pointer", marginTop: 1 }} />
+              <span style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.4 }}>
+                Jeg bekrefter at jeg har vippset 200 kr til {VIPPS_NUMBER}.
+              </span>
             </label>
           </div>
         )}

@@ -2,10 +2,10 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "../lib/supabase";
-import { ADMIN_EMAIL } from "../lib/config";
+import { isAdminEmail } from "../lib/config";
 import { teamNo, teamFlag, teamLabel } from "../lib/teams";
 import {
-  scorePrediction, scoreKnockout, groupByStage, isKnockout, teamsFromMatches, STAGE_ORDER,
+  scorePrediction, groupByStage, isKnockout, teamsSet, teamsFromMatches, STAGE_ORDER,
   scoreBonus, YN_QUESTIONS, GUESS_FIELDS, DEFAULT_BONUS_RULES,
   MATCH_LOCK_HOURS, matchLocked, bonusLocked, bonusDeadlineMs, fmtNO, deadlineLabel, noLocalToMs,
 } from "../lib/scoring";
@@ -32,7 +32,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [simNow, setSimNow] = useState(null); // admin test clock (ms) or null
 
-  const isAdmin = me?.email === ADMIN_EMAIL;
+  const isAdmin = isAdminEmail(me?.email);
   const nowMs = simNow != null ? simNow : Date.now();
 
   useEffect(() => {
@@ -94,7 +94,7 @@ export default function Home() {
 
   const predictedCount = useMemo(()=>matches.filter(m=>{
     const p=preds[m.id]; if(!p) return false;
-    if(isKnockout(m.stage)) return p.pred_home_team && p.pred_away_team && p.pred_home!=null && p.pred_away!=null;
+    if(isKnockout(m.stage) && !teamsSet(m)) return false; // TBA, not yet tippable
     return p.pred_home!=null && p.pred_away!=null;
   }).length, [matches, preds]);
 
@@ -131,19 +131,15 @@ export default function Home() {
       matches.forEach(m=>{
         const p=byUser[u.id]?.[m.id];
         const mult=doubleStages[m.stage]?2:1;
-        if(isKnockout(m.stage)){
-          const sc=scoreKnockout(m, p, m.result_home, m.result_away);
-          if(sc==null) return; matchPts+=sc*mult;
-          if(p && p.pred_home!=null && m.result_home!=null && p.pred_home===m.result_home && p.pred_away===m.result_away) exact++;
-        } else {
-          const sc=scorePrediction(p?.pred_home, p?.pred_away, m.result_home, m.result_away, rules);
-          if(sc==null) return; matchPts+=sc*mult;
-          if(sc===rules.exact_pts) exact++;
-        }
+        // Knockout matches with no teams yet (TBA) don't count for anyone.
+        if(isKnockout(m.stage) && !teamsSet(m)) return;
+        const sc=scorePrediction(p?.pred_home, p?.pred_away, m.result_home, m.result_away, rules);
+        if(sc==null) return; matchPts+=sc*mult;
+        if(sc===rules.exact_pts) exact++;
       });
       const bonus=scoreBonus(bonusByUser[u.id], bonusAnswers, bonusRules);
       const predicted=matches.filter(m=>{ const p=byUser[u.id]?.[m.id]; if(!p) return false;
-        if(isKnockout(m.stage)) return p.pred_home_team&&p.pred_away_team&&p.pred_home!=null&&p.pred_away!=null;
+        if(isKnockout(m.stage) && !teamsSet(m)) return false;
         return p.pred_home!=null&&p.pred_away!=null; }).length;
       return { ...u, pts:matchPts+bonus, matchPts, bonus, exact, predicted };
     }).sort((a,b)=>b.pts-a.pts || b.exact-a.exact);
@@ -237,33 +233,22 @@ function MatchRow({ m, preds, savePred, rules, nowMs, isAdmin, teamList, allPred
       dist=<div className="mmeta" style={{marginTop:5}}>{H} tror {teamNo(hn)} · {D} uavgjort · {A} tror {teamNo(an)} <span style={{opacity:.6}}>({tot} tippet)</span></div>;
     }
   }
-  if(ko){
-    const teams = teamList;
-    const sc = scoreKnockout(m, p, m.result_home, m.result_away);
-    const opt = () => <><option value="">— velg lag —</option>{teams.map(t=><option key={t} value={t}>{teamLabel(t)}</option>)}</>;
+  // Knockout match whose teams aren't decided yet → show TBA, not tippable.
+  if(ko && !teamsSet(m)){
     return (
       <div className="match" style={{gridTemplateColumns:"1fr"}}>
-        <div style={{textAlign:"center",fontSize:11,color:"var(--mut)",textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>{m.stage}</div>
-        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:"center"}}>
-          <select className="inp" disabled={lk} style={{flex:1,minWidth:120}} value={p.pred_home_team||""} onChange={e=>savePred(m.id,{pred_home_team:e.target.value})}>{opt()}</select>
-          <div className="scoreboxes">
-            <input className="sb" inputMode="numeric" disabled={lk} value={p.pred_home??""} onChange={e=>savePred(m.id,{pred_home:num(e.target.value)})}/>
-            <span style={{color:"var(--mut)"}}>–</span>
-            <input className="sb" inputMode="numeric" disabled={lk} value={p.pred_away??""} onChange={e=>savePred(m.id,{pred_away:num(e.target.value)})}/>
-          </div>
-          <select className="inp" disabled={lk} style={{flex:1,minWidth:120}} value={p.pred_away_team||""} onChange={e=>savePred(m.id,{pred_away_team:e.target.value})}>{opt()}</select>
-        </div>
-        <div className="mmeta">{meta}</div>
+        <div style={{textAlign:"center",fontSize:11,color:"var(--mut)",textTransform:"uppercase",letterSpacing:".08em",marginBottom:6}}>{m.stage}</div>
+        <div style={{textAlign:"center",fontWeight:800,fontSize:18,letterSpacing:".04em",color:"var(--mut)"}}>TBA</div>
+        <div className="mmeta">{m.match_date} · {m.match_time}</div>
         {dbl}
-        {dist}
-        {lock}
-        {sc!=null && <div className="lockpill">{(m.home&&!/\(|TBD/.test(m.home))?`${teamLabel(m.home)} ${m.result_home!=null?`${m.result_home}–${m.result_away}`:""} ${teamLabel(m.away)} · `:""}{sc} p</div>}
+        <div className="mmeta" style={{marginTop:4,opacity:.8}}>Lagene er ikke bestemt ennå</div>
       </div>
     );
   }
   const sc = scorePrediction(p.pred_home, p.pred_away, m.result_home, m.result_away, rules);
   return (
     <div className="match" style={{gridTemplateColumns:"1fr"}}>
+      {ko && <div style={{textAlign:"center",fontSize:11,color:"var(--mut)",textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>{m.stage}</div>}
       <div className="matchtop">
         <div className="team r">{teamFlag(m.home)}<br/>{teamNo(m.home)}</div>
         <div className="scoreboxes">
@@ -428,20 +413,16 @@ function Rules({ rules, bonusRules }){
       </div>
 
       <div className="card" style={{marginBottom:16}}>
-        <h2 className="sec">Poeng — gruppespill</h2>
+        <h2 className="sec">Poeng — alle kamper</h2>
+        <p className="note" style={{marginBottom:10}}>Samme poeng i gruppespill og sluttspill.</p>
         <Row label="Riktig resultat (eksakt)" value={`${rules.exact_pts} p`} />
         <Row label="Riktig utfall (seier/uavgjort/tap)" value={`${rules.outcome_pts} p`} />
         <Row label="Feil" value={`${rules.wrong_pts} p`} />
       </div>
 
       <div className="card" style={{marginBottom:16}}>
-        <h2 className="sec">Poeng — sluttspill</h2>
-        <p className="note" style={{marginBottom:10}}>I sluttspillet velger du selv hvilke to lag som møtes, i tillegg til resultatet.</p>
-        <Row label="Per riktig lag (maks 2)" value="1 p" />
-        <Row label="Riktig utfall" value="1 p" />
-        <Row label="Riktig resultat (eksakt)" value="3 p" />
-        <Row label="Maks per kamp" value="6 p" />
-        <p className="note" style={{marginTop:10}}>Sluttspill-tips gjelder resultatet etter ordinær tid (90 min).</p>
+        <h2 className="sec">Sluttspill</h2>
+        <p className="note" style={{lineHeight:1.6}}>Sluttspillkampene vises som <strong>TBA</strong> til lagene er avgjort. Når admin legger inn lagene, blir kampen tippbar akkurat som en gruppekamp — du tipper resultatet og får poeng på samme måte. Tips gjelder resultatet etter ordinær tid (90 min).</p>
       </div>
 
       <div className="card" style={{marginBottom:16}}>
@@ -483,7 +464,7 @@ function Rules({ rules, bonusRules }){
 
 /* ───────── Prize pool ───────── */
 function PrizePool({ profiles, leaderboard }){
-  const paid = profiles.filter(p=>p.paid && p.email!==ADMIN_EMAIL);
+  const paid = profiles.filter(p=>p.paid && !isAdminEmail(p.email));
   const pot = paid.length*200;
   const splits = [
     { pct:70, label:"1. plass", color:"var(--gold)" },
@@ -546,7 +527,7 @@ function Leaderboard({ rows, rules, total, isAdmin, deleteUser, prevRanks }){
         <td>{r.nick||r.name}{r.nick&&<span className="note"> · {r.name}</span>}</td>
         <td className="n"><strong>{r.pts}</strong></td><td className="n">{r.matchPts}</td><td className="n">{r.bonus}</td><td className="n">{r.exact}</td>
         <td className="n"><span className="note">{r.predicted}/{total}</span></td>
-        {isAdmin&&<td className="n">{r.email!==ADMIN_EMAIL&&<button className="del" title="Slett spiller" onClick={()=>deleteUser(r)}>✕</button>}</td>}</tr>
+        {isAdmin&&<td className="n">{!isAdminEmail(r.email)&&<button className="del" title="Slett spiller" onClick={()=>deleteUser(r)}>✕</button>}</td>}</tr>
     ))}</tbody></table></div>}
   </div>;
 }
@@ -600,7 +581,6 @@ function Admin({ supabase, matches, rules, bonusRules, profiles, allPreds, leade
     const head=["Spiller","E-post","Kallenavn",...matches.map(m=>`${m.home} v ${m.away}`),"Kamp-poeng","Bonus","Total","Eksakt","Tippet"];
     const rows=profiles.map(u=>{
       const cells=matches.map(m=>{ const p=byUser[u.id]?.[m.id]; if(!p) return "";
-        if(isKnockout(m.stage)){ const sc=(p.pred_home!=null)?`${p.pred_home}-${p.pred_away}`:""; return (p.pred_home_team||p.pred_away_team)?`${p.pred_home_team||"?"} ${sc} ${p.pred_away_team||"?"}`:sc; }
         return (p.pred_home!=null)?`${p.pred_home}-${p.pred_away}`:""; });
       const s=lb[u.id]||{};
       return [u.name,u.email,u.nick||"",...cells,s.matchPts||0,s.bonus||0,s.pts||0,s.exact||0,`${s.predicted||0}/${matches.length}`];
@@ -616,7 +596,7 @@ function Admin({ supabase, matches, rules, bonusRules, profiles, allPreds, leade
     <div>
       <div className="card" style={{marginBottom:16}}>
         <h2 className="sec">Poengregler — kamper</h2>
-        <p className="note" style={{marginBottom:10}}>Gjelder gruppespill. Sluttspill: 1 p per riktig lag, +1 riktig utfall, +3 eksakt (maks 6).</p>
+        <p className="note" style={{marginBottom:10}}>Gjelder alle kamper — gruppespill og sluttspill bruker samme poeng.</p>
         <div className="row">{[["exact_pts","Riktig resultat"],["outcome_pts","Riktig utfall"],["wrong_pts","Feil"]].map(([k,l])=>(
           <div className="field" key={k} style={{flex:1,minWidth:120,marginBottom:0}}><label>{l}</label>
             <input className="inp" inputMode="numeric" defaultValue={rules[k]} onBlur={e=>setRule(k,e.target.value)}/></div>
@@ -646,18 +626,18 @@ function Admin({ supabase, matches, rules, bonusRules, profiles, allPreds, leade
 
       <div className="card" style={{marginBottom:16}}>
         <div className="between"><h2 className="sec" style={{margin:0}}>Legg inn resultater</h2><button className="btn" onClick={exportCSV}>Eksporter CSV</button></div>
-        <p className="note" style={{margin:"6px 0 14px"}}>Tomt = ikke spilt. For sluttspill: velg lagene som faktisk spilte, så får spillerne lag-poeng. Sluttspill-tips gjelder resultat etter ordinær tid (90 min).</p>
+        <p className="note" style={{margin:"6px 0 14px"}}>Tomt = ikke spilt. For sluttspill: velg lagene som faktisk gikk videre — da blir kampen tippbar for spillerne (vises som TBA inntil da). Sluttspill-tips gjelder resultat etter ordinær tid (90 min).</p>
         {matches.map(m=> isKnockout(m.stage) ? (
           <div className="match" key={m.id} style={{gridTemplateColumns:"1fr"}}>
             <div style={{textAlign:"center",fontSize:11,color:"var(--mut)",textTransform:"uppercase",marginBottom:4}}>{m.stage} · {m.match_date}</div>
             <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",justifyContent:"center"}}>
-              <select className="inp" style={{flex:1,minWidth:110}} value={(m.home&&!/\(|TBD/.test(m.home))?m.home:""} onChange={e=>setKoTeam(m.id,"home",e.target.value)}><option value="">— lag —</option>{teamList.map(t=><option key={t} value={t}>{teamLabel(t)}</option>)}</select>
+              <select className="inp" style={{flex:1,minWidth:110}} value={teamsSet(m)?m.home:""} onChange={e=>setKoTeam(m.id,"home",e.target.value)}><option value="">— lag —</option>{teamList.map(t=><option key={t} value={t}>{teamLabel(t)}</option>)}</select>
               <div className="scoreboxes">
                 <input className="sb" inputMode="numeric" defaultValue={m.result_home??""} onBlur={e=>setResult(m.id,"h",e.target.value)}/>
                 <span style={{color:"var(--mut)"}}>–</span>
                 <input className="sb" inputMode="numeric" defaultValue={m.result_away??""} onBlur={e=>setResult(m.id,"a",e.target.value)}/>
               </div>
-              <select className="inp" style={{flex:1,minWidth:110}} value={(m.away&&!/\(|TBD/.test(m.away))?m.away:""} onChange={e=>setKoTeam(m.id,"away",e.target.value)}><option value="">— lag —</option>{teamList.map(t=><option key={t} value={t}>{teamLabel(t)}</option>)}</select>
+              <select className="inp" style={{flex:1,minWidth:110}} value={teamsSet(m)?m.away:""} onChange={e=>setKoTeam(m.id,"away",e.target.value)}><option value="">— lag —</option>{teamList.map(t=><option key={t} value={t}>{teamLabel(t)}</option>)}</select>
             </div>
           </div>
         ) : (
@@ -732,7 +712,7 @@ function Admin({ supabase, matches, rules, bonusRules, profiles, allPreds, leade
           const lbr=leaderboard.find(r=>r.id===u.id)||{};
           return <div className="card" key={u.id} style={{background:"var(--panel2)",marginBottom:10}}>
             <div><strong>{u.name}</strong> <span className="note">· {u.email}{u.nick?` · ${u.nick}`:""}</span>
-              {u.email!==ADMIN_EMAIL && (u.paid?<span className="tag" style={{color:"var(--teal)",borderColor:"#0c4a36",marginLeft:6}}>200 NOK ✓</span>:<span className="tag" style={{color:"var(--magenta)",borderColor:"#5a2418",marginLeft:6}}>IKKE BETALT</span>)}
+              {!isAdminEmail(u.email) && (u.paid?<span className="tag" style={{color:"var(--teal)",borderColor:"#0c4a36",marginLeft:6}}>200 NOK ✓</span>:<span className="tag" style={{color:"var(--magenta)",borderColor:"#5a2418",marginLeft:6}}>IKKE BETALT</span>)}
               <div className="note">{lbr.predicted||0}/{matches.length} tippet · {lbr.pts||0} p</div>
             </div></div>;
         })}

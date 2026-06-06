@@ -7,6 +7,12 @@ export const STAGE_ORDER = [
 
 export function isKnockout(stage){ return stage && !stage.startsWith("Gruppe"); }
 
+// True once a match has two real teams (admin has filled them in — not TBA/placeholder).
+export function teamsSet(m){
+  const ok = t => t && !/\(|TBD|TBA/i.test(t);
+  return ok(m.home) && ok(m.away);
+}
+
 export function groupByStage(matches){
   const g={};
   matches.forEach(m=>{ (g[m.stage] ||= []).push(m); });

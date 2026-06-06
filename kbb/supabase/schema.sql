@@ -3,8 +3,13 @@
 --  Run this in Supabase → SQL Editor BEFORE seed_matches.sql
 -- ============================================================
 
--- Who is the admin? Set this to Henrik's email.
--- (Used by RLS policies below.)
+-- Hvem er admin? Sett admin-e-postene her (må matche lib/config.js ADMIN_EMAILS).
+-- (Brukes av RLS-policyene under.)
+create or replace function public.is_admin_email(addr text) returns boolean
+  language sql immutable as $$
+    select lower(coalesce(addr,'')) in ('henrik.kalv@gmail.com', 'jakobwii@gmail.com')
+  $$;
+-- Bakoverkompatibel: returnerer den primære admin-e-posten
 create or replace function public.admin_email() returns text
   language sql immutable as $$ select 'henrik.kalv@gmail.com' $$;
 
@@ -157,7 +162,7 @@ create or replace function public.is_bonus_locked() returns boolean
 $$;
 
 create or replace function public.is_admin() returns boolean
-  language sql stable as $$ select (auth.jwt()->>'email') = admin_email() $$;
+  language sql stable as $$ select is_admin_email(auth.jwt()->>'email') $$;
 
 -- ============================================================
 --  Row Level Security
@@ -195,11 +200,11 @@ drop policy if exists "matches ins"   on matches;
 drop policy if exists "matches del"   on matches;
 create policy "matches read"  on matches for select to authenticated using (true);
 create policy "matches write" on matches for update to authenticated
-  using ((auth.jwt()->>'email') = admin_email());
+  using (is_admin_email(auth.jwt()->>'email'));
 create policy "matches ins"   on matches for insert to authenticated
-  with check ((auth.jwt()->>'email') = admin_email());
+  with check (is_admin_email(auth.jwt()->>'email'));
 create policy "matches del"   on matches for delete to authenticated
-  using ((auth.jwt()->>'email') = admin_email());
+  using (is_admin_email(auth.jwt()->>'email'));
 
 -- predictions: everyone reads (leaderboard transparency); you write only your own,
 -- and only while that match is NOT locked (3h before kickoff). Admin can always write.
@@ -225,14 +230,14 @@ create policy "sub read"   on submissions for select to authenticated using (tru
 create policy "sub write"  on submissions for insert to authenticated with check (auth.uid() = user_id);
 create policy "sub update" on submissions for update to authenticated using (auth.uid() = user_id);
 create policy "sub admin update" on submissions for update to authenticated
-  using ((auth.jwt()->>'email') = admin_email());
+  using (is_admin_email(auth.jwt()->>'email'));
 
 -- scoring rules: everyone reads; only admin edits
 drop policy if exists "rules read"  on scoring_rules;
 drop policy if exists "rules write" on scoring_rules;
 create policy "rules read"  on scoring_rules for select to authenticated using (true);
 create policy "rules write" on scoring_rules for update to authenticated
-  using ((auth.jwt()->>'email') = admin_email());
+  using (is_admin_email(auth.jwt()->>'email'));
 
 -- bonus predictions: everyone reads (leaderboard); you write your own only before the
 -- bonus deadline (11 June 18:00 NO). Admin can always write.
@@ -250,14 +255,14 @@ drop policy if exists "ba read"  on bonus_answers;
 drop policy if exists "ba write" on bonus_answers;
 create policy "ba read"  on bonus_answers for select to authenticated using (true);
 create policy "ba write" on bonus_answers for update to authenticated
-  using ((auth.jwt()->>'email') = admin_email());
+  using (is_admin_email(auth.jwt()->>'email'));
 
 -- bonus rules: everyone reads; only admin edits
 drop policy if exists "brules read"  on bonus_rules;
 drop policy if exists "brules write" on bonus_rules;
 create policy "brules read"  on bonus_rules for select to authenticated using (true);
 create policy "brules write" on bonus_rules for update to authenticated
-  using ((auth.jwt()->>'email') = admin_email());
+  using (is_admin_email(auth.jwt()->>'email'));
 
 -- double stages: everyone reads; only admin edits
 drop policy if exists "dbl read"  on double_stages;
