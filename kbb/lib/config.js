@@ -1,5 +1,5 @@
 // ── Change these if needed ──────────────────────────────
-export const APP_NAME = "Kælles kule";
+export const APP_NAME = "Wiik og Kælle presenterer PROGNOSESENTERET";
 // Admin e-poster (må matche admin_email-sjekken i supabase/schema.sql)
 export const ADMIN_EMAILS = ["henrik.kalv@gmail.com", "jakobwii@gmail.com"];
 // Bakoverkompatibel: noen steder bruker fortsatt ADMIN_EMAIL (første admin)

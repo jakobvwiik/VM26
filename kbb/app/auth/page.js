@@ -68,7 +68,8 @@ export default function AuthPage() {
   return (
     <div className="center">
       <div className="card" style={{ maxWidth: 440, width: "100%" }}>
-        <div className="logo" style={{ marginBottom: 4 }}>Kælles <span className="g">kule</span></div>
+        <div style={{ fontFamily: "'Archivo'", fontWeight: 700, fontSize: 14, letterSpacing: ".08em", color: "var(--mut)", marginBottom: 2 }}>Wiik og Kælle presenterer</div>
+        <div className="logo" style={{ fontSize: "clamp(26px,7vw,46px)", marginBottom: 4, wordBreak: "break-word" }}><span className="g">PROGNOSESENTERET</span></div>
         <div className="sub" style={{ marginBottom: 18 }}>Privat VM 2026 tippeliga</div>
 
         <div className="nav" style={{ marginTop: 0 }}>

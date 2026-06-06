@@ -26,6 +26,7 @@ create table if not exists profiles (
 -- if profiles already exists from an earlier run, add the columns:
 alter table profiles add column if not exists paid boolean default false;
 alter table profiles add column if not exists paid_at timestamptz;
+alter table profiles add column if not exists accepted_terms boolean default false;
 
 -- auto-create a profile row when someone signs up
 create or replace function public.handle_new_user() returns trigger
@@ -117,21 +118,25 @@ create table if not exists bonus_predictions (
   user_id uuid primary key references auth.users(id) on delete cascade,
   yn jsonb default '{}'::jsonb,
   teams jsonb default '[]'::jsonb,
+  picks jsonb default '{}'::jsonb,
   top_scorer text,
   top_assist text,
   top_keeper text,
   updated_at timestamptz default now()
 );
+alter table bonus_predictions add column if not exists picks jsonb default '{}'::jsonb;
 
 -- ---------- bonus answers (admin-set correct answers, single row) ----------
 create table if not exists bonus_answers (
   id int primary key default 1,
   yn jsonb default '{}'::jsonb,
   teams jsonb default '[]'::jsonb,
+  picks jsonb default '{}'::jsonb,
   top_scorer text,
   top_assist text,
   top_keeper text
 );
+alter table bonus_answers add column if not exists picks jsonb default '{}'::jsonb;
 insert into bonus_answers (id) values (1) on conflict do nothing;
 
 -- ---------- bonus scoring rules (single row, admin-editable) ----------

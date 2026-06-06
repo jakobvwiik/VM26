@@ -75,15 +75,32 @@ export const YN_QUESTIONS = [
   "En kamp blir forsinket eller avlyst på grunn av ekstremvær eller opptøyer",
   "En tilskuer stormer banen i løpet av mesterskapet",
   "En amerikansk superkjendis som ikke har en dritt med idrett å gjøre filmes fra tribunen",
+  "Gabriel Magalhaes filmer i eget felt",
+  "Trump tar det velkjente, dominerende håndtrykket sitt mot kapteinen ila VM",
+  "USAs supportere heier «DEFENCE, DEFENCE, DEFENCE» fra tribunen",
+  "Det blir brukt tåregass utenfor en stadion i løpet av mesterskapet",
+  "Det kommer et oppslag i VG om hvor ræva mesterskapet er organisert",
+  "VAR bruker over 5 min på én avgjørelse",
+  "Det blir kiss cam i en kamp, ELLER det filmes et frieri fra tribunen",
+  "Trump kaller VM for «the greatest world cup ever»",
+  "Det gis et rødt kort for lugging",
+  "En corner går rett i mål",
+  "En spiller slår til en annen",
+  "En keeper får assist",
+  "En norsk journalist omtaler mesterskapet som «sirkus»",
 ];
-export const GUESS_FIELDS = [
-  { key:"top_scorer", label:"Spilleren med flest mål" },
-  { key:"top_assist", label:"Spilleren med flest målgivende pasninger" },
-  { key:"top_keeper", label:"Keeperen med flest kamper uten å slippe inn mål" },
+
+// "Velg lag"-spørsmål: besvares med en lag-dropdown (admin setter fasit likt).
+export const TEAM_PICK_QUESTIONS = [
+  { key:"fastest_goal",  label:"Hvilket land scorer VMs raskeste mål?" },
+  { key:"most_cards",    label:"Hvilket lag får flest kort sammenlagt?" },
+  { key:"top_scorer",    label:"Toppscorer kommer fra hvilket land?" },
+  { key:"top_assist",    label:"Spilleren med flest målgivende kommer fra hvilket land?" },
+  { key:"top_keeper",    label:"Keeperen med flest nullkamper kommer fra hvilket land?" },
 ];
 export const DEFAULT_BONUS_RULES = { yn:5, guess:5, intop8:1, exactpos:4 };
 
-// b = bonus prediction {yn:{}, teams:[], top_scorer, top_assist, top_keeper}
+// b = bonus prediction {yn:{}, teams:[], picks:{key:teamName}}
 // a = bonus answers (same shape); rules = {yn,guess,intop8,exactpos}
 export function scoreBonus(b, a, rules){
   if(!b) return 0;
@@ -91,9 +108,11 @@ export function scoreBonus(b, a, rules){
   let pts=0;
   const byn=b.yn||{}, ayn=a.yn||{};
   YN_QUESTIONS.forEach((_,i)=>{ if(ayn[i] && byn[i] && ayn[i]===byn[i]) pts+=rules.yn; });
-  GUESS_FIELDS.forEach(f=>{
-    const ans=(a[f.key]||"").trim().toLowerCase();
-    const guess=(b[f.key]||"").trim().toLowerCase();
+  // team-pick questions (incl. the individual prizes)
+  const bpick=b.picks||{}, apick=a.picks||{};
+  TEAM_PICK_QUESTIONS.forEach(q=>{
+    const ans=(apick[q.key]||"").trim().toLowerCase();
+    const guess=(bpick[q.key]||"").trim().toLowerCase();
     if(ans && guess && ans===guess) pts+=rules.guess;
   });
   const correct=a.teams||[], guess=b.teams||[];

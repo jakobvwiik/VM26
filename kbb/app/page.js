@@ -6,7 +6,7 @@ import { isAdminEmail } from "../lib/config";
 import { teamNo, teamFlag, teamLabel } from "../lib/teams";
 import {
   scorePrediction, groupByStage, isKnockout, teamsSet, teamsFromMatches, STAGE_ORDER,
-  scoreBonus, YN_QUESTIONS, GUESS_FIELDS, DEFAULT_BONUS_RULES,
+  scoreBonus, YN_QUESTIONS, TEAM_PICK_QUESTIONS, DEFAULT_BONUS_RULES,
   matchLocked, bonusLocked, bonusDeadlineMs, fmtNO, deadlineLabel,
 } from "../lib/scoring";
 
@@ -30,6 +30,7 @@ export default function Home() {
   const [tab, setTab] = useState("predict");
   const [sortMode, setSortMode] = useState("gruppe");
   const [loading, setLoading] = useState(true);
+  const [needsTerms, setNeedsTerms] = useState(false);
   const isAdmin = isAdminEmail(me?.email);
 
   useEffect(() => {
@@ -64,11 +65,13 @@ export default function Home() {
     setProfiles(pf.data || []);
     if (rl.data) setRules(rl.data);
     setAllBonus(ab.data || []);
-    setMyBonus((ab.data||[]).find(x=>x.user_id===me.id) || { user_id:me.id, yn:{}, teams:[], top_scorer:"", top_assist:"", top_keeper:"" });
-    if (ba.data) setBonusAnswers({ yn:ba.data.yn||{}, teams:ba.data.teams||[], top_scorer:ba.data.top_scorer||"", top_assist:ba.data.top_assist||"", top_keeper:ba.data.top_keeper||"" });
+    setMyBonus((ab.data||[]).find(x=>x.user_id===me.id) || { user_id:me.id, yn:{}, teams:[], picks:{} });
+    if (ba.data) setBonusAnswers({ yn:ba.data.yn||{}, teams:ba.data.teams||[], picks:ba.data.picks||{} });
     if (br.data) setBonusRules(br.data);
     if (ds.data) setDoubleStages(ds.data.stages||{});
     if (rs.data) setPrevRanks(rs.data.ranks||{});
+    const myProfile = (pf.data||[]).find(p=>p.id===me.id);
+    setNeedsTerms(!!myProfile && !myProfile.accepted_terms && !isAdminEmail(me.email));
     setLoading(false);
   }, [me]);
 
@@ -114,10 +117,14 @@ export default function Home() {
     setMyBonus(next);
     setAllBonus(list=>[...list.filter(x=>x.user_id!==me.id), next]);
     await supabase.from("bonus_predictions").upsert({
-      user_id:me.id, yn:next.yn||{}, teams:next.teams||[],
-      top_scorer:next.top_scorer||null, top_assist:next.top_assist||null, top_keeper:next.top_keeper||null,
+      user_id:me.id, yn:next.yn||{}, teams:next.teams||[], picks:next.picks||{},
       updated_at:new Date().toISOString(),
     });
+  }
+
+  async function acceptTerms(){
+    setNeedsTerms(false);
+    await supabase.from("profiles").update({ accepted_terms:true }).eq("id", me.id);
   }
 
   const leaderboard = useMemo(()=>{
@@ -167,10 +174,12 @@ export default function Home() {
 
   return (
     <>
+      {needsTerms && <TermsModal onAccept={acceptTerms} />}
       <header className="band">
         <div className="bandinner">
           <div className="kicker">★ Privat tippeliga · VM 2026 ★</div>
-          <div className="logo">Kælles <span className="g">kule</span></div>
+          <div style={{fontFamily:"'Archivo'",fontWeight:700,fontSize:"clamp(13px,3.5vw,18px)",letterSpacing:".08em",color:"var(--mut)",marginBottom:2}}>Wiik og Kælle presenterer</div>
+          <div className="logo" style={{fontSize:"clamp(30px,8vw,58px)",wordBreak:"break-word"}}><span className="g">PROGNOSESENTERET</span></div>
           <div className="sub">USA · Canada · Mexico — 11. juni–19. juli 2026</div>
           <div className="who">
             <span className="tag">{myProf?.nick || myProf?.name || me.email}</span>
@@ -205,6 +214,34 @@ export default function Home() {
           doubleStages={doubleStages} reload={loadAll} snapshotRanks={snapshotRanks} />}
       </div>
     </>
+  );
+}
+
+/* ───────── Terms modal (first login) ───────── */
+function TermsModal({ onAccept }){
+  const items = [
+    "Jeg forstår at deltakelse koster 200 kr, og at jeg kan bli fjernet fra konkurransen dersom betalingen ikke er mottatt av Henrik.",
+    "Jeg bekrefter at jeg har lest reglene og er kjent med dem. Det er mitt eget ansvar å overholde frister, følge med på oppdateringer og sørge for at tips leveres i tide.",
+    "Jeg forstår at appen er vibecodet med kjærlighet, pils og tvilsomme utviklervalg. Ethvert forsøk på å manipulere, utnytte eller lure systemet medfører umiddelbar diskvalifisering uten refusjon.",
+    "Jeg forstår at Henrik har siste ord i alle spørsmål knyttet til bonuspoeng, tolkning av regler og eventuelle gråsoner. Alle avgjørelser er endelige, og VAR kan ikke brukes.",
+    "Jeg forstår at Cheese er tilbakestående, men at han må behandles likt som alle andre på tross av sine utfordringer.",
+  ];
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(5,4,18,.88)",backdropFilter:"blur(3px)",zIndex:100,
+      display:"flex",alignItems:"center",justifyContent:"center",padding:16,overflowY:"auto"}}>
+      <div className="card" style={{maxWidth:520,width:"100%",margin:"auto"}}>
+        <h2 className="sec" style={{marginBottom:6}}>Før du blir med</h2>
+        <p className="note" style={{marginBottom:14}}>Ved å trykke «Jeg godtar» bekrefter jeg følgende:</p>
+        <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:18}}>
+          {items.map((t,i)=>(
+            <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start",fontSize:13.5,lineHeight:1.5}}>
+              <span style={{color:"var(--teal)",flexShrink:0,marginTop:1}}>☑️</span><span>{t}</span>
+            </div>
+          ))}
+        </div>
+        <button className="btn primary" style={{width:"100%",justifyContent:"center"}} onClick={onAccept}>Jeg godtar</button>
+      </div>
+    </div>
   );
 }
 
@@ -312,15 +349,15 @@ function Predict({ matches, preds, predictedCount, sortMode, setSortMode, savePr
 
 /* ───────── Bonus ───────── */
 function Bonus({ matches, bonus, answers, rules, saveBonus, locked }){
-  const b = bonus || { yn:{}, teams:[], top_scorer:"", top_assist:"", top_keeper:"" };
-  const yn=b.yn||{}, teams=b.teams||[];
+  const b = bonus || { yn:{}, teams:[], picks:{} };
+  const yn=b.yn||{}, teams=b.teams||[], picks=b.picks||{};
   const teamList=teamsFromMatches(matches);
-  const ans=answers||{yn:{}};
+  const ans=answers||{yn:{},picks:{}};
   const ynBtn=(on)=>({padding:"8px 16px",borderRadius:9,fontFamily:"inherit",cursor:locked?"default":"pointer",fontSize:14,
     border:on?"1px solid var(--teal)":"1px solid var(--line)",background:on?"var(--teal)":"var(--panel2)",color:on?"#04120c":"var(--ink)",fontWeight:on?800:600});
   const setYn=(i,v)=>{ if(!locked) saveBonus({...b,yn:{...yn,[i]:v}}); };
   const setTeam=(i,v)=>{ if(!locked){ const t=[...teams]; t[i]=v; saveBonus({...b,teams:t}); } };
-  const setGuess=(k,v)=>{ if(!locked) saveBonus({...b,[k]:v}); };
+  const setPick=(k,v)=>{ if(!locked) saveBonus({...b,picks:{...picks,[k]:v}}); };
   return (
     <div>
       <div className="card" style={{marginBottom:16}}>
@@ -357,13 +394,15 @@ function Bonus({ matches, bonus, answers, rules, saveBonus, locked }){
         ))}
       </div>
       <div className="card">
-        <h3 className="sub2">Individuelle priser</h3>
+        <h3 className="sub2">Velg lag</h3>
         <p className="note" style={{marginBottom:12}}>{rules.guess} poeng for hvert riktig svar.</p>
-        {GUESS_FIELDS.map(f=>{
-          const val=b[f.key]||"", corr=ans[f.key]||"";
+        {TEAM_PICK_QUESTIONS.map(q=>{
+          const val=picks[q.key]||"", corr=ans.picks?.[q.key]||"";
           const got=corr&&val?(corr.trim().toLowerCase()===val.trim().toLowerCase()?<span style={{color:"var(--teal)"}}> +{rules.guess} p</span>:<span style={{color:"var(--magenta)"}}> 0 p</span>):null;
-          return <div className="field" key={f.key}><label>{f.label}{got}</label>
-            <input className="inp" disabled={locked} value={val} placeholder="Spillernavn" onChange={e=>setGuess(f.key,e.target.value)}/></div>;
+          return <div className="field" key={q.key}><label>{q.label}{got}</label>
+            <select className="inp" disabled={locked} value={val} onChange={e=>setPick(q.key,e.target.value)}>
+              <option value="">— velg lag —</option>{teamList.map(t=><option key={t} value={t}>{teamLabel(t)}</option>)}
+            </select></div>;
         })}
       </div>
     </div>
@@ -459,7 +498,7 @@ function Rules({ rules, bonusRules }){
 
 /* ───────── Prize pool ───────── */
 function PrizePool({ profiles, leaderboard }){
-  const paid = profiles.filter(p=>p.paid && !isAdminEmail(p.email));
+  const paid = profiles.filter(p=>p.paid || isAdminEmail(p.email));
   const pot = paid.length*200;
   const splits = [
     { pct:70, label:"1. plass", color:"var(--gold)" },
@@ -527,7 +566,6 @@ function Leaderboard({ rows, rules, total, isAdmin, deleteUser, prevRanks }){
   </div>;
 }
 
-/* ───────── Test panel (admin only) ───────── */
 /* ───────── Admin ───────── */
 function LockToggle({ m, onToggle }){
   const auto = matchLocked(m, null, false); // er den allerede tidslåst?
@@ -572,7 +610,7 @@ function Admin({ supabase, matches, rules, bonusRules, profiles, allPreds, leade
   async function setBRule(k,v){ await supabase.from("bonus_rules").update({[k]:parseInt(v)||0}).eq("id",1); reload(); }
   async function setBaYn(i,v){ await supabase.from("bonus_answers").update({yn:{...(ba.yn||{}),[i]:v}}).eq("id",1); reload(); }
   async function setBaTeam(i,v){ const t=[...(ba.teams||[])]; t[i]=v; await supabase.from("bonus_answers").update({teams:t}).eq("id",1); reload(); }
-  async function setBaGuess(k,v){ await supabase.from("bonus_answers").update({[k]:v}).eq("id",1); reload(); }
+  async function setBaPick(k,v){ await supabase.from("bonus_answers").update({picks:{...(ba.picks||{}),[k]:v}}).eq("id",1); reload(); }
 
   function exportCSV(){
     const byUser={}; allPreds.forEach(p=>{ (byUser[p.user_id]||={})[p.match_id]=p; });
@@ -677,10 +715,12 @@ function Admin({ supabase, matches, rules, bonusRules, profiles, allPreds, leade
             <select className="inp" style={{flex:1}} value={(ba.teams||[])[i]||""} onChange={e=>setBaTeam(i,e.target.value)}><option value="">— velg lag —</option>{teamList.map(t=><option key={t} value={t}>{teamLabel(t)}</option>)}</select>
           </div>
         ))}
-        <h3 className="sub2">Individuelle priser (fasit)</h3>
-        {GUESS_FIELDS.map(f=>(
-          <div className="field" key={f.key}><label>{f.label}</label>
-            <input className="inp" defaultValue={ba[f.key]||""} placeholder="Spillernavn" onBlur={e=>setBaGuess(f.key,e.target.value)}/></div>
+        <h3 className="sub2">Velg lag (fasit)</h3>
+        {TEAM_PICK_QUESTIONS.map(q=>(
+          <div className="field" key={q.key}><label>{q.label}</label>
+            <select className="inp" value={(ba.picks||{})[q.key]||""} onChange={e=>setBaPick(q.key,e.target.value)}>
+              <option value="">— velg lag —</option>{teamList.map(t=><option key={t} value={t}>{teamLabel(t)}</option>)}
+            </select></div>
         ))}
       </div>
 
