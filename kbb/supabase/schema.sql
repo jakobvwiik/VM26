@@ -193,7 +193,7 @@ drop policy if exists "profiles upsert" on profiles;
 drop policy if exists "profiles update" on profiles;
 create policy "profiles read"   on profiles for select to authenticated using (true);
 create policy "profiles upsert" on profiles for insert to authenticated with check (auth.uid() = id);
-create policy "profiles update" on profiles for update to authenticated using (auth.uid() = id);
+create policy "profiles update" on profiles for update to authenticated using (auth.uid() = id or is_admin());
 -- admin can delete any player's profile (predictions/bonus cascade via FK on delete)
 drop policy if exists "profiles admin del" on profiles;
 create policy "profiles admin del" on profiles for delete to authenticated using (is_admin());

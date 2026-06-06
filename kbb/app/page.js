@@ -168,6 +168,12 @@ export default function Home() {
     loadAll();
   }
 
+  async function editUser(u, name, nick){
+    if(!isAdmin) return;
+    await supabase.from("profiles").update({ name: name.trim(), nick: nick.trim() || null }).eq("id", u.id);
+    loadAll();
+  }
+
   if (session===undefined || loading) return <div className="spin">Laster…</div>;
   if (!session) return null;
   const myProf = profiles.find(p=>p.id===me.id);
@@ -206,7 +212,7 @@ export default function Home() {
         {tab==="bonus" && <Bonus matches={matches} bonus={myBonus} answers={bonusAnswers} rules={bonusRules}
           saveBonus={saveBonus} locked={bonusLocked(null, isAdmin)} />}
         {tab==="matches" && <MatchList matches={matches} />}
-        {tab==="leaderboard" && <Leaderboard rows={leaderboard} rules={rules} total={matches.length} isAdmin={isAdmin} deleteUser={deleteUser} prevRanks={prevRanks} />}
+        {tab==="leaderboard" && <Leaderboard rows={leaderboard} rules={rules} total={matches.length} isAdmin={isAdmin} deleteUser={deleteUser} editUser={editUser} prevRanks={prevRanks} />}
         {tab==="pott" && <PrizePool profiles={profiles} leaderboard={leaderboard} />}
         {tab==="regler" && <Rules rules={rules} bonusRules={bonusRules} />}
         {tab==="admin" && isAdmin && <Admin supabase={supabase} matches={matches} rules={rules} bonusRules={bonusRules}
@@ -543,7 +549,12 @@ function PrizePool({ profiles, leaderboard }){
 }
 
 /* ───────── Leaderboard ───────── */
-function Leaderboard({ rows, rules, total, isAdmin, deleteUser, prevRanks }){
+function Leaderboard({ rows, rules, total, isAdmin, deleteUser, editUser, prevRanks }){
+  const [editId, setEditId] = useState(null);
+  const [eName, setEName] = useState("");
+  const [eNick, setENick] = useState("");
+  function startEdit(r){ setEditId(r.id); setEName(r.name||""); setENick(r.nick||""); }
+  async function saveEdit(r){ await editUser(r, eName, eNick); setEditId(null); }
   function mv(email, cur){
     const prev = prevRanks?.[email];
     if(prev==null || prev===cur) return <span style={{color:"var(--mut)",opacity:.5}}>–</span>;
@@ -552,16 +563,37 @@ function Leaderboard({ rows, rules, total, isAdmin, deleteUser, prevRanks }){
       : <span style={{color:"var(--magenta)"}} title={`ned ${cur-prev}`}>▼{cur-prev>1?cur-prev:""}</span>;
   }
   return <div className="card"><h2 className="sec">Tabell</h2>
-    <p className="note" style={{marginBottom:14}}>Riktig resultat {rules.exact_pts} p · riktig utfall {rules.outcome_pts} p · feil {rules.wrong_pts}. Bonus teller med i totalen.{isAdmin?" Som admin kan du slette spillere her.":""}</p>
+    <p className="note" style={{marginBottom:14}}>Riktig resultat {rules.exact_pts} p · riktig utfall {rules.outcome_pts} p · feil {rules.wrong_pts}. Bonus teller med i totalen.{isAdmin?" Som admin kan du redigere eller slette spillere her.":""}</p>
     {rows.length===0?<div className="empty">Ingen spillere ennå.</div>:
     <div className="tablewrap"><table className="lb"><thead><tr><th>#</th><th></th><th>Spiller</th><th className="n">Tot</th><th className="n">Kamp</th><th className="n">Bonus</th><th className="n">Eksakt</th><th className="n">Tippet</th>{isAdmin&&<th></th>}</tr></thead>
     <tbody>{rows.map((r,i)=>(
+      editId===r.id ? (
+        <tr key={r.id}>
+          <td><span className={`rankbadge ${i===0?"g1":i===1?"g2":i===2?"g3":""}`}>{i+1}</span></td>
+          <td className="n" style={{fontSize:12}}>{mv(r.id,i+1)}</td>
+          <td colSpan={5}>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              <input className="inp" style={{flex:1,minWidth:120,padding:"7px 9px",fontSize:13}} value={eName} placeholder="Fullt navn" onChange={e=>setEName(e.target.value)}/>
+              <input className="inp" style={{flex:1,minWidth:120,padding:"7px 9px",fontSize:13}} value={eNick} placeholder="Kallenavn" onChange={e=>setENick(e.target.value)}/>
+            </div>
+          </td>
+          <td className="n" style={{whiteSpace:"nowrap"}}>
+            <button className="btn primary" style={{padding:"6px 10px",fontSize:12}} onClick={()=>saveEdit(r)}>Lagre</button>
+            {" "}
+            <button className="btn ghost" style={{padding:"6px 8px",fontSize:12}} onClick={()=>setEditId(null)}>Avbryt</button>
+          </td>
+        </tr>
+      ) : (
       <tr key={r.id}><td><span className={`rankbadge ${i===0?"g1":i===1?"g2":i===2?"g3":""}`}>{i+1}</span></td>
         <td className="n" style={{fontSize:12}}>{mv(r.id,i+1)}</td>
         <td>{r.nick||r.name}{r.nick&&<span className="note"> · {r.name}</span>}</td>
         <td className="n"><strong>{r.pts}</strong></td><td className="n">{r.matchPts}</td><td className="n">{r.bonus}</td><td className="n">{r.exact}</td>
         <td className="n"><span className="note">{r.predicted}/{total}</span></td>
-        {isAdmin&&<td className="n">{!isAdminEmail(r.email)&&<button className="del" title="Slett spiller" onClick={()=>deleteUser(r)}>✕</button>}</td>}</tr>
+        {isAdmin&&<td className="n" style={{whiteSpace:"nowrap"}}>
+          <button className="del" style={{borderColor:"var(--line)",color:"var(--teal)",marginRight:4}} title="Rediger navn" onClick={()=>startEdit(r)}>✎</button>
+          {!isAdminEmail(r.email)&&<button className="del" title="Slett spiller" onClick={()=>deleteUser(r)}>✕</button>}
+        </td>}</tr>
+      )
     ))}</tbody></table></div>}
   </div>;
 }
