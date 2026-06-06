@@ -170,7 +170,9 @@ export default function Home() {
 
   async function editUser(u, name, nick){
     if(!isAdmin) return;
-    await supabase.from("profiles").update({ name: name.trim(), nick: nick.trim() || null }).eq("id", u.id);
+    if(!name.trim()){ alert("Navn kan ikke være tomt."); return; }
+    const { error } = await supabase.from("profiles").update({ name: name.trim(), nick: nick.trim() || null }).eq("id", u.id);
+    if(error){ alert("Kunne ikke lagre: " + error.message + "\n\nHar du kjørt schema.sql på nytt i Supabase?"); return; }
     loadAll();
   }
 
@@ -573,8 +575,8 @@ function Leaderboard({ rows, rules, total, isAdmin, deleteUser, editUser, prevRa
           <td className="n" style={{fontSize:12}}>{mv(r.id,i+1)}</td>
           <td colSpan={5}>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              <input className="inp" style={{flex:1,minWidth:120,padding:"7px 9px",fontSize:13}} value={eName} placeholder="Fullt navn" onChange={e=>setEName(e.target.value)}/>
               <input className="inp" style={{flex:1,minWidth:120,padding:"7px 9px",fontSize:13}} value={eNick} placeholder="Kallenavn" onChange={e=>setENick(e.target.value)}/>
+              <input className="inp" style={{flex:1,minWidth:120,padding:"7px 9px",fontSize:13}} value={eName} placeholder="Fullt navn" onChange={e=>setEName(e.target.value)}/>
             </div>
           </td>
           <td className="n" style={{whiteSpace:"nowrap"}}>
