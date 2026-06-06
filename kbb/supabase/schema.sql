@@ -59,8 +59,11 @@ create table if not exists matches (
   home text not null,
   away text not null,
   result_home int,
-  result_away int
+  result_away int,
+  locked_manual boolean default false
 );
+-- if matches already exists from an earlier run, add the column:
+alter table matches add column if not exists locked_manual boolean default false;
 
 -- which stages are double points: single-row jsonb {stage:true}
 create table if not exists double_stages (
@@ -149,6 +152,7 @@ insert into bonus_rules (id) values (1) on conflict do nothing;
 create or replace function public.is_match_locked(mid bigint) returns boolean
   language sql stable as $$
   select case
+    when md.locked_manual then true   -- admin nødlås (backup)
     when md.match_date is null or md.match_time is null then false
     else now() >= ((md.match_date || ' ' || md.match_time)::timestamp
                    at time zone 'Europe/Oslo')

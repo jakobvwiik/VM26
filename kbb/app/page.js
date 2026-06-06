@@ -7,7 +7,7 @@ import { teamNo, teamFlag, teamLabel } from "../lib/teams";
 import {
   scorePrediction, groupByStage, isKnockout, teamsSet, teamsFromMatches, STAGE_ORDER,
   scoreBonus, YN_QUESTIONS, GUESS_FIELDS, DEFAULT_BONUS_RULES,
-  MATCH_LOCK_HOURS, matchLocked, bonusLocked, bonusDeadlineMs, fmtNO, deadlineLabel, noLocalToMs,
+  matchLocked, bonusLocked, bonusDeadlineMs, fmtNO, deadlineLabel,
 } from "../lib/scoring";
 
 export default function Home() {
@@ -30,10 +30,7 @@ export default function Home() {
   const [tab, setTab] = useState("predict");
   const [sortMode, setSortMode] = useState("gruppe");
   const [loading, setLoading] = useState(true);
-  const [simNow, setSimNow] = useState(null); // admin test clock (ms) or null
-
   const isAdmin = isAdminEmail(me?.email);
-  const nowMs = simNow != null ? simNow : Date.now();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -100,7 +97,7 @@ export default function Home() {
 
   async function savePred(matchId, patch){
     const m = matches.find(x=>x.id===matchId);
-    if(matchLocked(m, nowMs, isAdmin)) return;
+    if(matchLocked(m, null, isAdmin)) return;
     const cur = preds[matchId] || { user_id:me.id, match_id:matchId };
     const next = { ...cur, ...patch, user_id:me.id, match_id:matchId };
     setPreds(p=>({ ...p, [matchId]: next }));
@@ -113,7 +110,7 @@ export default function Home() {
   }
 
   async function saveBonus(next){
-    if(bonusLocked(nowMs, isAdmin)) return;
+    if(bonusLocked(null, isAdmin)) return;
     setMyBonus(next);
     setAllBonus(list=>[...list.filter(x=>x.user_id!==me.id), next]);
     await supabase.from("bonus_predictions").upsert({
@@ -196,9 +193,9 @@ export default function Home() {
 
         {tab==="predict" && <Predict matches={matches} preds={preds} predictedCount={predictedCount}
           sortMode={sortMode} setSortMode={setSortMode} savePred={savePred} rules={rules}
-          nowMs={nowMs} isAdmin={isAdmin} allPreds={allPreds} doubleStages={doubleStages} totalPlayers={profiles.length} />}
+          isAdmin={isAdmin} allPreds={allPreds} doubleStages={doubleStages} totalPlayers={profiles.length} />}
         {tab==="bonus" && <Bonus matches={matches} bonus={myBonus} answers={bonusAnswers} rules={bonusRules}
-          saveBonus={saveBonus} locked={bonusLocked(nowMs, isAdmin)} />}
+          saveBonus={saveBonus} locked={bonusLocked(null, isAdmin)} />}
         {tab==="matches" && <MatchList matches={matches} />}
         {tab==="leaderboard" && <Leaderboard rows={leaderboard} rules={rules} total={matches.length} isAdmin={isAdmin} deleteUser={deleteUser} prevRanks={prevRanks} />}
         {tab==="pott" && <PrizePool profiles={profiles} leaderboard={leaderboard} />}
@@ -207,17 +204,15 @@ export default function Home() {
           profiles={profiles} allPreds={allPreds} leaderboard={leaderboard} bonusAnswers={bonusAnswers}
           doubleStages={doubleStages} reload={loadAll} snapshotRanks={snapshotRanks} />}
       </div>
-
-      {isAdmin && <TestPanel simNow={simNow} setSimNow={setSimNow} />}
     </>
   );
 }
 
 /* ───────── Predict ───────── */
-function MatchRow({ m, preds, savePred, rules, nowMs, isAdmin, teamList, allPreds, doubleStages }){
+function MatchRow({ m, preds, savePred, rules, isAdmin, teamList, allPreds, doubleStages }){
   const p = preds[m.id] || {};
   const ko = isKnockout(m.stage);
-  const lk = matchLocked(m, nowMs, isAdmin);
+  const lk = matchLocked(m, null, isAdmin);
   const meta = `${m.match_date} · ${m.match_time}${lk?"":` · frist ${deadlineLabel(m)}`}`;
   const lock = lk ? <div className="lockpill">🔒 Låst (stengte ved kampstart)</div> : null;
   const dbl = doubleStages?.[m.stage] ? <div className="lockpill" style={{color:"var(--lime)"}}>★ DOBBEL POENG</div> : null;
@@ -267,11 +262,11 @@ function MatchRow({ m, preds, savePred, rules, nowMs, isAdmin, teamList, allPred
   );
 }
 
-function Predict({ matches, preds, predictedCount, sortMode, setSortMode, savePred, rules, nowMs, isAdmin, allPreds, doubleStages, totalPlayers }){
+function Predict({ matches, preds, predictedCount, sortMode, setSortMode, savePred, rules, isAdmin, allPreds, doubleStages, totalPlayers }){
   const pct = matches.length?Math.round(predictedCount/matches.length*100):0;
   const teamList = teamsFromMatches(matches);
   let body;
-  const rowProps = { preds, savePred, rules, nowMs, isAdmin, teamList, allPreds, doubleStages };
+  const rowProps = { preds, savePred, rules, isAdmin, teamList, allPreds, doubleStages };
   if(sortMode==="gruppe"){
     const grouped=groupByStage(matches);
     body = Object.entries(grouped).map(([stage,ms])=>(
@@ -533,26 +528,27 @@ function Leaderboard({ rows, rules, total, isAdmin, deleteUser, prevRanks }){
 }
 
 /* ───────── Test panel (admin only) ───────── */
-function TestPanel({ simNow, setSimNow }){
-  const [custom, setCustom] = useState("");
-  const presets = [["2026-06-11T15:00","11.06 15:00"],["2026-06-11T16:30","11.06 16:30"],["2026-06-11T19:30","11.06 19:30"]];
+/* ───────── Admin ───────── */
+function LockToggle({ m, onToggle }){
+  const auto = matchLocked(m, null, false); // er den allerede tidslåst?
   return (
-    <div className="testpanel">
-      <div style={{fontWeight:800,letterSpacing:".04em",textTransform:"uppercase",fontSize:11,color:"var(--teal)",marginBottom:8}}>🧪 Test-tid (kun admin)</div>
-      <div className="note" style={{marginBottom:9}}>{simNow==null?<>Bruker <strong>ekte klokke</strong>.</>:<>Simulert: <strong style={{color:"var(--gold)"}}>{fmtNO(simNow)}</strong></>}</div>
-      <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:9}}>
-        {presets.map(([v,l])=><button key={v} className="btn ghost" style={{padding:"7px 10px",fontSize:12}} onClick={()=>setSimNow(noLocalToMs(v))}>{l}</button>)}
-      </div>
-      <input className="inp" type="datetime-local" value={custom} onChange={e=>setCustom(e.target.value)} style={{fontSize:13,padding:8,marginBottom:8}}/>
-      <div style={{display:"flex",gap:6}}>
-        <button className="btn primary" style={{flex:1,justifyContent:"center",padding:8,fontSize:13}} onClick={()=>{ if(custom) setSimNow(noLocalToMs(custom)); }}>Bruk tid</button>
-        <button className="btn" style={{padding:"8px 10px",fontSize:13}} onClick={()=>setSimNow(null)}>Nullstill</button>
-      </div>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginTop:8}}>
+      {m.locked_manual
+        ? <span style={{fontSize:11,color:"var(--gold)",fontWeight:700}}>🔒 Manuelt låst</span>
+        : auto
+          ? <span style={{fontSize:11,color:"var(--mut)"}}>Låst automatisk (kampstart passert)</span>
+          : <span style={{fontSize:11,color:"var(--mut)"}}>Åpen</span>}
+      <button onClick={()=>onToggle(m)}
+        style={{padding:"5px 11px",borderRadius:8,fontFamily:"inherit",fontWeight:700,fontSize:12,cursor:"pointer",
+          border: m.locked_manual ? "1px solid var(--teal)" : "1px solid var(--line)",
+          background: m.locked_manual ? "var(--teal)" : "var(--panel2)",
+          color: m.locked_manual ? "#04120c" : "var(--ink)"}}>
+        {m.locked_manual ? "Lås opp" : "Lås nå"}
+      </button>
     </div>
   );
 }
 
-/* ───────── Admin ───────── */
 function Admin({ supabase, matches, rules, bonusRules, profiles, allPreds, leaderboard, bonusAnswers, doubleStages, reload, snapshotRanks }){
   const [nm, setNm] = useState({ stage:"Gruppe A", match_date:"", match_time:"", home:"", away:"" });
   const teamList = teamsFromMatches(matches);
@@ -566,6 +562,7 @@ function Admin({ supabase, matches, rules, bonusRules, profiles, allPreds, leade
     await supabase.from("double_stages").update({ stages: next }).eq("id",1); reload();
   }
   async function setKoTeam(id,field,val){ await supabase.from("matches").update({[field]:val}).eq("id",id); reload(); }
+  async function toggleLock(m){ await supabase.from("matches").update({ locked_manual: !m.locked_manual }).eq("id", m.id); reload(); }
   // Vis valgt lag for én side hvis det er et ekte lag (ikke placeholder som "R16 M1 (borte)")
   const sideTeam = name => (name && !/\(|TBD|TBA/i.test(name)) ? name : "";
   async function editMatch(id,field,val){ await supabase.from("matches").update({[field]:val}).eq("id",id); reload(); }
@@ -628,7 +625,7 @@ function Admin({ supabase, matches, rules, bonusRules, profiles, allPreds, leade
 
       <div className="card" style={{marginBottom:16}}>
         <div className="between"><h2 className="sec" style={{margin:0}}>Legg inn resultater</h2><button className="btn" onClick={exportCSV}>Eksporter CSV</button></div>
-        <p className="note" style={{margin:"6px 0 14px"}}>Tomt = ikke spilt. For sluttspill: velg lagene som faktisk gikk videre — da blir kampen tippbar for spillerne (vises som TBA inntil da). Sluttspill-tips gjelder resultat etter ordinær tid (90 min).</p>
+        <p className="note" style={{margin:"6px 0 14px"}}>Tomt = ikke spilt. For sluttspill: velg lagene som faktisk gikk videre — da blir kampen tippbar for spillerne (vises som TBA inntil da). Sluttspill-tips gjelder resultat etter ordinær tid (90 min). <strong>Lås nå</strong> er en nødbryter — bruk den bare hvis en kamp ikke låses automatisk.</p>
         {matches.map(m=> isKnockout(m.stage) ? (
           <div className="match" key={m.id} style={{gridTemplateColumns:"1fr"}}>
             <div style={{textAlign:"center",fontSize:11,color:"var(--mut)",textTransform:"uppercase",marginBottom:4}}>{m.stage} · {m.match_date}</div>
@@ -641,6 +638,7 @@ function Admin({ supabase, matches, rules, bonusRules, profiles, allPreds, leade
               </div>
               <select className="inp" style={{flex:1,minWidth:110}} value={sideTeam(m.away)} onChange={e=>setKoTeam(m.id,"away",e.target.value)}><option value="">— lag —</option>{teamList.map(t=><option key={t} value={t}>{teamLabel(t)}</option>)}</select>
             </div>
+            <LockToggle m={m} onToggle={toggleLock} />
           </div>
         ) : (
           <div className="match" key={m.id} style={{gridTemplateColumns:"1fr"}}>
@@ -653,6 +651,7 @@ function Admin({ supabase, matches, rules, bonusRules, profiles, allPreds, leade
               </div>
               <div className="team">{teamFlag(m.away)}<br/>{teamNo(m.away)}</div>
             </div>
+            <LockToggle m={m} onToggle={toggleLock} />
           </div>
         ))}
       </div>

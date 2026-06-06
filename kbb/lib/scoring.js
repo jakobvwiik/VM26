@@ -128,6 +128,7 @@ export function bonusDeadlineMs(){
 // nowMs: pass a simulated time (ms) or null for real clock
 export function matchLocked(m, nowMs, isAdmin){
   if(isAdmin) return false;
+  if(m && m.locked_manual) return true;   // admin nødlås (backup)
   const ko=kickoffInstant(m.match_date, m.match_time);
   if(!ko) return false;
   return (nowMs ?? Date.now()) >= ko.getTime() - MATCH_LOCK_HOURS*3600*1000;
