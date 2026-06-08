@@ -112,6 +112,12 @@ export default function Home() {
     }, { onConflict:"user_id,match_id" });
   }
 
+  async function toggleMatchLock(m){
+    if(!isAdmin) return;
+    await supabase.from("matches").update({ locked_manual: !m.locked_manual }).eq("id", m.id);
+    loadAll();
+  }
+
   async function saveBonus(next){
     if(bonusLocked(null, isAdmin)) return;
     setMyBonus(next);
@@ -210,7 +216,7 @@ export default function Home() {
 
         {tab==="predict" && <Predict matches={matches} preds={preds} predictedCount={predictedCount}
           sortMode={sortMode} setSortMode={setSortMode} savePred={savePred} rules={rules}
-          isAdmin={isAdmin} allPreds={allPreds} doubleStages={doubleStages} totalPlayers={profiles.length} />}
+          isAdmin={isAdmin} allPreds={allPreds} doubleStages={doubleStages} totalPlayers={profiles.length} toggleMatchLock={toggleMatchLock} />}
         {tab==="bonus" && <Bonus matches={matches} bonus={myBonus} answers={bonusAnswers} rules={bonusRules}
           saveBonus={saveBonus} locked={bonusLocked(null, isAdmin)} />}
         {tab==="matches" && <MatchList matches={matches} />}
@@ -254,7 +260,18 @@ function TermsModal({ onAccept }){
 }
 
 /* ───────── Predict ───────── */
-function MatchRow({ m, preds, savePred, rules, isAdmin, teamList, allPreds, doubleStages }){
+function MatchRow({ m, preds, savePred, rules, isAdmin, teamList, allPreds, doubleStages, toggleMatchLock }){
+  const adminLock = isAdmin && toggleMatchLock ? (
+    <div style={{textAlign:"center",marginTop:6}}>
+      <button onClick={()=>toggleMatchLock(m)}
+        style={{padding:"5px 11px",borderRadius:8,fontFamily:"inherit",fontWeight:700,fontSize:11,cursor:"pointer",
+          border: m.locked_manual ? "1px solid var(--teal)" : "1px solid var(--line)",
+          background: m.locked_manual ? "var(--teal)" : "transparent",
+          color: m.locked_manual ? "#04120c" : "var(--mut)"}}>
+        {m.locked_manual ? "🔒 Manuelt låst — trykk for å låse opp" : "Lås denne kampen (admin)"}
+      </button>
+    </div>
+  ) : null;
   const p = preds[m.id] || {};
   const ko = isKnockout(m.stage);
   const lk = matchLocked(m, null, isAdmin);
@@ -282,6 +299,7 @@ function MatchRow({ m, preds, savePred, rules, isAdmin, teamList, allPreds, doub
         <div className="mmeta">{m.match_date} · {m.match_time}</div>
         {dbl}
         <div className="mmeta" style={{marginTop:4,opacity:.8}}>Lagene er ikke bestemt ennå</div>
+        {adminLock}
       </div>
     );
   }
@@ -303,15 +321,16 @@ function MatchRow({ m, preds, savePred, rules, isAdmin, teamList, allPreds, doub
       {dist}
       {lock}
       {m.result_home!=null && <div className="lockpill">Resultat {m.result_home}–{m.result_away} · {sc} p</div>}
+      {adminLock}
     </div>
   );
 }
 
-function Predict({ matches, preds, predictedCount, sortMode, setSortMode, savePred, rules, isAdmin, allPreds, doubleStages, totalPlayers }){
+function Predict({ matches, preds, predictedCount, sortMode, setSortMode, savePred, rules, isAdmin, allPreds, doubleStages, totalPlayers, toggleMatchLock }){
   const pct = matches.length?Math.round(predictedCount/matches.length*100):0;
   const teamList = teamsFromMatches(matches);
   let body;
-  const rowProps = { preds, savePred, rules, isAdmin, teamList, allPreds, doubleStages };
+  const rowProps = { preds, savePred, rules, isAdmin, teamList, allPreds, doubleStages, toggleMatchLock };
   if(sortMode==="gruppe"){
     const grouped=groupByStage(matches);
     body = Object.entries(grouped).map(([stage,ms])=>(
