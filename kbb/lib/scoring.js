@@ -144,16 +144,15 @@ export function bonusDeadlineMs(){
   const [h,mi]=t.split(":").map(Number);
   return Date.UTC(Y, M-1, D, h-CEST_OFFSET, mi||0);
 }
-// nowMs: pass a simulated time (ms) or null for real clock
-export function matchLocked(m, nowMs, isAdmin){
-  if(isAdmin) return false;
-  if(m && m.locked_manual) return true;   // admin nødlås (backup)
+// nowMs: pass a simulated time (ms) or null for real clock.
+// Note: admin's OWN tips lock like everyone else; admin manages matches via the admin panel.
+export function matchLocked(m, nowMs, _isAdmin){
+  if(m && m.locked_manual) return true;   // manuell lås (admin nødbryter, gjelder alle)
   const ko=kickoffInstant(m.match_date, m.match_time);
   if(!ko) return false;
   return (nowMs ?? Date.now()) >= ko.getTime() - MATCH_LOCK_HOURS*3600*1000;
 }
-export function bonusLocked(nowMs, isAdmin){
-  if(isAdmin) return false;
+export function bonusLocked(nowMs, _isAdmin){
   return (nowMs ?? Date.now()) >= bonusDeadlineMs();
 }
 export function fmtNO(ms){

@@ -221,13 +221,14 @@ drop policy if exists "pred read"   on predictions;
 drop policy if exists "pred write"  on predictions;
 drop policy if exists "pred update" on predictions;
 create policy "pred read" on predictions for select to authenticated using (true);
+-- admins egne tips låses som alle andre; admin styrer kamper via admin-panelet (matches-tabellen)
 create policy "pred write" on predictions for insert to authenticated
   with check (
-    is_admin() or (auth.uid() = user_id and not is_match_locked(match_id))
+    auth.uid() = user_id and not is_match_locked(match_id)
   );
 create policy "pred update" on predictions for update to authenticated
   using (
-    is_admin() or (auth.uid() = user_id and not is_match_locked(match_id))
+    auth.uid() = user_id and not is_match_locked(match_id)
   );
 
 -- submissions: you read/insert/update your own; admin can update anyone's (to reopen)
@@ -249,15 +250,15 @@ create policy "rules write" on scoring_rules for update to authenticated
   using (is_admin_email(auth.jwt()->>'email'));
 
 -- bonus predictions: everyone reads (leaderboard); you write your own only before the
--- bonus deadline (11 June 18:00 NO). Admin can always write.
+-- bonus deadline (11 June 18:00 NO). Admins egne bonussvar låses som alle andre.
 drop policy if exists "bp read"   on bonus_predictions;
 drop policy if exists "bp write"  on bonus_predictions;
 drop policy if exists "bp update" on bonus_predictions;
 create policy "bp read" on bonus_predictions for select to authenticated using (true);
 create policy "bp write" on bonus_predictions for insert to authenticated
-  with check ( is_admin() or (auth.uid() = user_id and not is_bonus_locked()) );
+  with check ( auth.uid() = user_id and not is_bonus_locked() );
 create policy "bp update" on bonus_predictions for update to authenticated
-  using ( is_admin() or (auth.uid() = user_id and not is_bonus_locked()) );
+  using ( auth.uid() = user_id and not is_bonus_locked() );
 
 -- bonus answers (fasit): everyone reads; only admin edits
 drop policy if exists "ba read"  on bonus_answers;
