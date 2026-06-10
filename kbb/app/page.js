@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "../lib/supabase";
 import { isAdminEmail } from "../lib/config";
@@ -94,20 +94,29 @@ export default function Home() {
 
   useEffect(()=>{ if(me) loadAll(); }, [me, loadAll]);
 
+  const reloadTimer = useRef(null);
+  const saveTimers = useRef({});       // matchId -> timeout id
+  const ignoreReload = useRef(false);  // suppress our own realtime echo
+  const debouncedReload = useCallback(()=>{
+    if(ignoreReload.current) return;          // ikke last på nytt pga. vår egen skriving
+    clearTimeout(reloadTimer.current);
+    reloadTimer.current = setTimeout(()=>{ loadAll(); }, 2500); // samle opp endringer i 2,5 s
+  }, [loadAll]);
+
   useEffect(()=>{
     if(!me) return;
     const ch = supabase.channel("kbb")
-      .on("postgres_changes",{event:"*",schema:"public",table:"matches"},loadAll)
-      .on("postgres_changes",{event:"*",schema:"public",table:"predictions"},loadAll)
-      .on("postgres_changes",{event:"*",schema:"public",table:"scoring_rules"},loadAll)
-      .on("postgres_changes",{event:"*",schema:"public",table:"bonus_predictions"},loadAll)
-      .on("postgres_changes",{event:"*",schema:"public",table:"bonus_answers"},loadAll)
-      .on("postgres_changes",{event:"*",schema:"public",table:"bonus_rules"},loadAll)
-      .on("postgres_changes",{event:"*",schema:"public",table:"double_stages"},loadAll)
-      .on("postgres_changes",{event:"*",schema:"public",table:"rank_snapshot"},loadAll)
+      .on("postgres_changes",{event:"*",schema:"public",table:"matches"},debouncedReload)
+      .on("postgres_changes",{event:"*",schema:"public",table:"predictions"},debouncedReload)
+      .on("postgres_changes",{event:"*",schema:"public",table:"scoring_rules"},debouncedReload)
+      .on("postgres_changes",{event:"*",schema:"public",table:"bonus_predictions"},debouncedReload)
+      .on("postgres_changes",{event:"*",schema:"public",table:"bonus_answers"},debouncedReload)
+      .on("postgres_changes",{event:"*",schema:"public",table:"bonus_rules"},debouncedReload)
+      .on("postgres_changes",{event:"*",schema:"public",table:"double_stages"},debouncedReload)
+      .on("postgres_changes",{event:"*",schema:"public",table:"rank_snapshot"},debouncedReload)
       .subscribe();
     return ()=>supabase.removeChannel(ch);
-  }, [me, loadAll]);
+  }, [me, debouncedReload]);
 
   const predictedCount = useMemo(()=>matches.filter(m=>{
     const p=preds[m.id]; if(!p) return false;
@@ -115,19 +124,39 @@ export default function Home() {
     return p.pred_home!=null && p.pred_away!=null;
   }).length, [matches, preds]);
 
-  async function savePred(matchId, patch){
+  function flushPred(matchId, row){
+    ignoreReload.current = true;
+    supabase.from("predictions").upsert(row, { onConflict:"user_id,match_id" })
+      .then(()=>{ setTimeout(()=>{ ignoreReload.current = false; }, 1200); });
+  }
+
+  function savePred(matchId, patch){
     const m = matches.find(x=>x.id===matchId);
     if(matchLocked(m, null, isAdmin)) return;
     const cur = preds[matchId] || { user_id:me.id, match_id:matchId };
     const next = { ...cur, ...patch, user_id:me.id, match_id:matchId };
-    setPreds(p=>({ ...p, [matchId]: next }));
-    await supabase.from("predictions").upsert({
+    setPreds(p=>({ ...p, [matchId]: next }));   // umiddelbar UI-oppdatering
+    const row = {
       user_id:me.id, match_id:matchId,
       pred_home: next.pred_home ?? null, pred_away: next.pred_away ?? null,
-      pred_home_team: next.pred_home_team ?? null, pred_away_team: next.pred_away_team ?? null,
       updated_at: new Date().toISOString(),
-    }, { onConflict:"user_id,match_id" });
+    };
+    // Debounce: vent ~800 ms etter siste tastetrykk før vi skriver til databasen
+    clearTimeout(saveTimers.current[matchId]);
+    saveTimers.current[matchId] = setTimeout(()=>flushPred(matchId, row), 800);
   }
+
+  // Lagre eventuelle ventende tips hvis fanen lukkes / mister fokus
+  useEffect(()=>{
+    function flushAll(){
+      Object.keys(saveTimers.current).forEach(id=>{
+        if(saveTimers.current[id]){ clearTimeout(saveTimers.current[id]); }
+      });
+    }
+    window.addEventListener("pagehide", flushAll);
+    window.addEventListener("beforeunload", flushAll);
+    return ()=>{ window.removeEventListener("pagehide", flushAll); window.removeEventListener("beforeunload", flushAll); };
+  }, []);
 
   async function toggleMatchLock(m){
     if(!isAdmin) return;
