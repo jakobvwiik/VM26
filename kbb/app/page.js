@@ -47,9 +47,26 @@ export default function Home() {
 
   const loadAll = useCallback(async () => {
     if (!me) return;
-    const [m, pr, mine, pf, rl, ab, ba, br, ds, rs] = await Promise.all([
+    // Fetch ALL predictions in pages — Supabase caps a single query at 1000 rows,
+    // and with many players × 72+ matches we exceed that, which made the leaderboard
+    // under-count tips. Page through until we've got everything.
+    async function fetchAllPredictions(){
+      const pageSize = 1000;
+      let from = 0, all = [];
+      while(true){
+        const { data, error } = await supabase
+          .from("predictions").select("*")
+          .range(from, from + pageSize - 1);
+        if(error || !data) break;
+        all = all.concat(data);
+        if(data.length < pageSize) break;
+        from += pageSize;
+      }
+      return all;
+    }
+    const [m, prAll, mine, pf, rl, ab, ba, br, ds, rs] = await Promise.all([
       supabase.from("matches").select("*").order("match_no"),
-      supabase.from("predictions").select("*"),
+      fetchAllPredictions(),
       supabase.from("predictions").select("*").eq("user_id", me.id),
       supabase.from("profiles").select("*"),
       supabase.from("scoring_rules").select("*").eq("id",1).single(),
@@ -60,7 +77,7 @@ export default function Home() {
       supabase.from("rank_snapshot").select("*").eq("id",1).single(),
     ]);
     setMatches(m.data || []);
-    setAllPreds(pr.data || []);
+    setAllPreds(prAll || []);
     const mm = {}; (mine.data||[]).forEach(p=>{ mm[p.match_id]=p; }); setPreds(mm);
     setProfiles(pf.data || []);
     if (rl.data) setRules(rl.data);
