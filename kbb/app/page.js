@@ -632,7 +632,7 @@ function Leaderboard({ rows, rules, total, isAdmin, deleteUser, editUser, prevRa
   return <div className="card"><h2 className="sec">Tabell</h2>
     <p className="note" style={{marginBottom:14}}>Riktig resultat {rules.exact_pts} p · riktig utfall {rules.outcome_pts} p · feil {rules.wrong_pts}. Bonus teller med i totalen.{isAdmin?" Som admin kan du redigere eller slette spillere her.":""}</p>
     {rows.length===0?<div className="empty">Ingen spillere ennå.</div>:
-    <div className="tablewrap"><table className="lb"><thead><tr><th>#</th><th></th><th>Spiller</th><th className="n tot">Tot</th><th className="n">Tips</th><th className="n">Bonus</th><th className="n">Eksakt</th><th className="n">Tippet</th>{isAdmin&&<th></th>}</tr></thead>
+    <div className="tablewrap"><table className="lb"><thead><tr><th>#</th><th></th><th>Spiller</th><th className="n tot">Tot</th><th className="n">Tips</th><th className="n">Eksakt</th><th className="n">Bonus</th><th className="n">Tippet</th>{isAdmin&&<th></th>}</tr></thead>
     <tbody>{rows.map((r,i)=>(
       editId===r.id ? (
         <tr key={r.id}>
@@ -654,7 +654,7 @@ function Leaderboard({ rows, rules, total, isAdmin, deleteUser, editUser, prevRa
       <tr key={r.id}><td><span className={`rankbadge ${i===0?"g1":i===1?"g2":i===2?"g3":""}`}>{i+1}</span></td>
         <td className="n" style={{fontSize:12}}>{mv(r.id,i+1)}</td>
         <td>{r.nick||r.name}{r.nick&&<span className="note"> · {r.name}</span>}</td>
-        <td className="n tot"><strong>{r.pts}</strong></td><td className="n">{r.matchPts}</td><td className="n">{r.bonus}</td><td className="n">{r.exact}</td>
+        <td className="n tot"><strong>{r.pts}</strong></td><td className="n">{r.matchPts}</td><td className="n">{r.exact}</td><td className="n">{r.bonus}</td>
         <td className="n"><span className="note">{r.predicted}/{total}</span></td>
         {isAdmin&&<td className="n" style={{whiteSpace:"nowrap"}}>
           <button className="del" style={{borderColor:"var(--line)",color:"var(--teal)",marginRight:4}} title="Rediger navn" onClick={()=>startEdit(r)}>✎</button>
