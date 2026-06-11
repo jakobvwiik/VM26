@@ -66,10 +66,16 @@ a{color:inherit}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .between{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .lb{width:100%;border-collapse:collapse;font-size:14px}
-.lb th,.lb td{padding:12px 10px;text-align:left;border-bottom:1px solid var(--line)}
+.lb th,.lb td{padding:14px 11px;text-align:left;border-bottom:1px solid var(--line)}
 .lb th{color:var(--mut);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.08em}
 .lb td.n{text-align:center;font-variant-numeric:tabular-nums}
+.lb th.n{text-align:center}
 .lb tbody tr:hover{background:rgba(255,255,255,.02)}
+/* Fremhevet totalkolonne — dette er tallet som gjelder */
+.lb .tot{background:rgba(124,92,255,.10);border-left:1px solid var(--line);border-right:1px solid var(--line)}
+.lb th.tot{color:var(--ink);font-size:12px}
+.lb td.tot strong{font-size:16px;color:var(--ink)}
+.lb tbody tr:hover .tot{background:rgba(124,92,255,.16)}
 .tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 @media(max-width:600px){
   .wrap{padding:0 12px}
