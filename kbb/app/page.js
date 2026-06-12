@@ -312,22 +312,18 @@ function NextMatchStrip({ matches, onGoToPredict }){
 
   return (
     <div onClick={onGoToPredict} style={{cursor:"pointer",background:isLive?"linear-gradient(90deg,rgba(255,42,109,.18),rgba(124,92,255,.12))":"var(--panel2)",
-      border:`1px solid ${isLive?"var(--magenta)":"var(--line)"}`,borderRadius:14,padding:"12px 14px",marginBottom:14}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-        <div style={{display:"flex",alignItems:"center",gap:9,minWidth:0}}>
-          <span style={{fontSize:11,fontWeight:800,letterSpacing:".06em",textTransform:"uppercase",color:isLive?"var(--magenta)":"var(--teal)",whiteSpace:"nowrap"}}>
-            {isLive ? "● Spilles nå" : "Neste kamp"}
-          </span>
-          <span style={{fontWeight:700,fontSize:14,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
-            {teamFlag(m.home)} {teamNo(m.home)} – {teamNo(m.away)} {teamFlag(m.away)}
-          </span>
-        </div>
-        <div style={{textAlign:"right",whiteSpace:"nowrap"}}>
-          {isLive
-            ? <span style={{fontSize:12,color:"var(--mut)"}}>Tipping stengt</span>
-            : <><span style={{fontSize:11,color:"var(--mut)"}}>Låses om </span><strong style={{fontSize:14,color:"var(--gold)",fontVariantNumeric:"tabular-nums"}}>{fmtCountdown(ko-now)}</strong></>}
-          <div style={{fontSize:11,color:"var(--mut)",textTransform:"capitalize"}}>{koStr}</div>
-        </div>
+      border:`1px solid ${isLive?"var(--magenta)":"var(--line)"}`,borderRadius:14,padding:"14px",marginBottom:14,textAlign:"center"}}>
+      <div style={{fontSize:11,fontWeight:800,letterSpacing:".06em",textTransform:"uppercase",color:isLive?"var(--magenta)":"var(--teal)",marginBottom:6}}>
+        {isLive ? "● Spilles nå" : "Neste kamp"}
+      </div>
+      <div style={{fontWeight:700,fontSize:"clamp(15px,4.5vw,18px)",marginBottom:6,wordBreak:"break-word"}}>
+        {teamFlag(m.home)} {teamNo(m.home)} – {teamNo(m.away)} {teamFlag(m.away)}
+      </div>
+      <div>
+        {isLive
+          ? <span style={{fontSize:13,color:"var(--mut)"}}>Tipping stengt</span>
+          : <><span style={{fontSize:12,color:"var(--mut)"}}>Låses om </span><strong style={{fontSize:15,color:"var(--gold)",fontVariantNumeric:"tabular-nums"}}>{fmtCountdown(ko-now)}</strong></>}
+        <span style={{fontSize:12,color:"var(--mut)",textTransform:"capitalize"}}> · {koStr}</span>
       </div>
     </div>
   );
@@ -752,26 +748,31 @@ function Leaderboard({ rows, rules, total, isAdmin, deleteUser, editUser, prevRa
           {!isAdminEmail(r.email)&&<button className="del" title="Slett spiller" onClick={()=>deleteUser(r)}>✕</button>}
         </td>}</tr>
       {openId===r.id && (
-        <tr><td colSpan={colCount} style={{padding:"0 11px 14px",background:"rgba(255,255,255,.015)"}}>
+        <tr><td colSpan={colCount} style={{padding:0,background:"rgba(255,255,255,.015)"}}>
+          <div style={{maxWidth:"min(100%, 92vw)",padding:"0 11px 14px"}}>
           {(()=>{ const bd=breakdown(r.id);
             if(!bd.length) return <div className="note" style={{padding:"12px 0"}}>Ingen ferdigspilte kamper ennå.</div>;
             return <div style={{padding:"12px 0",display:"flex",flexDirection:"column",gap:7}}>
               <div className="note" style={{marginBottom:2}}>Kamp-poeng: <strong>{r.matchPts}</strong> · Bonus: <strong>{r.bonus}</strong> · Totalt: <strong style={{color:"var(--ink)"}}>{r.pts}</strong></div>
-              {bd.map(({m,pred,pts,kind,doubled})=>(
+              {bd.map(({m,pred,pts,kind,doubled})=>{
+                const label = kind==="eksakt"?"Eksakt":kind==="utfall"?"Riktig utfall":kind==="ikke tippet"?"Ikke tippet":"Feil";
+                const col = kindColor(kind);
+                return (
                 <div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,fontSize:13,borderBottom:"1px solid var(--line)",paddingBottom:6}}>
                   <span style={{minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                     {teamFlag(m.home)} {teamNo(m.home)} {m.result_home}–{m.result_away} {teamNo(m.away)} {teamFlag(m.away)}
                     {doubled && <span style={{color:"var(--lime)",fontWeight:700}}> ★2×</span>}
                   </span>
-                  <span style={{whiteSpace:"nowrap",textAlign:"right"}}>
-                    <span style={{color:"var(--mut)",fontSize:12}}>{pred&&pred.pred_home!=null?`tippet ${pred.pred_home}–${pred.pred_away}`:"–"}</span>
-                    {" · "}
-                    <strong style={{color:kindColor(kind)}}>{kind==="ikke tippet"?"0 p":`+${pts} p`}</strong>
+                  <span style={{whiteSpace:"nowrap",flexShrink:0,padding:"3px 10px",borderRadius:999,fontSize:12,fontWeight:700,
+                    color:col,border:`1px solid ${col}`,background:"color-mix(in srgb, "+col+" 12%, transparent)"}}>
+                    {label} {kind==="ikke tippet"?"0 p":`+${pts} p`}
                   </span>
                 </div>
-              ))}
+                );
+              })}
             </div>;
           })()}
+          </div>
         </td></tr>
       )}
       </React.Fragment>
