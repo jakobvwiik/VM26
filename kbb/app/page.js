@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "../lib/supabase";
 import { isAdminEmail } from "../lib/config";
@@ -7,7 +7,7 @@ import { teamNo, teamFlag, teamLabel } from "../lib/teams";
 import {
   scorePrediction, groupByStage, isKnockout, teamsSet, teamsFromMatches, STAGE_ORDER,
   scoreBonus, YN_QUESTIONS, TEAM_PICK_QUESTIONS, DEFAULT_BONUS_RULES,
-  matchLocked, bonusLocked, bonusDeadlineMs, fmtNO, deadlineLabel,
+  matchLocked, bonusLocked, bonusDeadlineMs, fmtNO, deadlineLabel, kickoffInstant,
 } from "../lib/scoring";
 
 export default function Home() {
@@ -250,6 +250,7 @@ export default function Home() {
       </header>
 
       <div className="wrap" style={{paddingTop:4}}>
+        <NextMatchStrip matches={matches} onGoToPredict={()=>setTab("predict")} />
         <nav className="nav">
           <button className={tab==="predict"?"on":""} onClick={()=>setTab("predict")}>Mine tips</button>
           <button className={tab==="bonus"?"on":""} onClick={()=>setTab("bonus")}>Bonus</button>
@@ -266,7 +267,7 @@ export default function Home() {
         {tab==="bonus" && <Bonus matches={matches} bonus={myBonus} answers={bonusAnswers} rules={bonusRules}
           saveBonus={saveBonus} locked={bonusLocked(null, isAdmin)} />}
         {tab==="matches" && <MatchList matches={matches} />}
-        {tab==="leaderboard" && <Leaderboard rows={leaderboard} rules={rules} total={matches.length} isAdmin={isAdmin} deleteUser={deleteUser} editUser={editUser} prevRanks={prevRanks} />}
+        {tab==="leaderboard" && <Leaderboard rows={leaderboard} rules={rules} total={matches.length} isAdmin={isAdmin} deleteUser={deleteUser} editUser={editUser} prevRanks={prevRanks} matches={matches} allPreds={allPreds} doubleStages={doubleStages} />}
         {tab==="pott" && <PrizePool profiles={profiles} leaderboard={leaderboard} />}
         {tab==="regler" && <Rules rules={rules} bonusRules={bonusRules} />}
         {tab==="admin" && isAdmin && <Admin supabase={supabase} matches={matches} rules={rules} bonusRules={bonusRules}
@@ -278,6 +279,60 @@ export default function Home() {
 }
 
 /* ───────── Terms modal (first login) ───────── */
+/* ───────── Kampen nå / neste kamp (stripe) ───────── */
+function NextMatchStrip({ matches, onGoToPredict }){
+  const [now, setNow] = useState(Date.now());
+  useEffect(()=>{ const t=setInterval(()=>setNow(Date.now()), 1000); return ()=>clearInterval(t); }, []);
+
+  // Bygg liste med avsparkstidspunkt, hopp over sluttspill uten lag (TBA)
+  const withKo = matches
+    .filter(m=>m.match_date && m.match_time && teamsSet(m))
+    .map(m=>({ m, ko: kickoffInstant(m.match_date, m.match_time)?.getTime() }))
+    .filter(x=>x.ko)
+    .sort((a,b)=>a.ko-b.ko);
+  if(!withKo.length) return null;
+
+  // Live = startet for under 2,5 t siden og ikke ferdigstilt med resultat
+  const live = withKo.find(x=> now>=x.ko && now < x.ko + 2.5*3600*1000 && x.m.result_home==null);
+  const next = withKo.find(x=> x.ko>now);
+  const pick = live || next;
+  if(!pick) return null;
+  const { m, ko } = pick;
+  const isLive = !!live;
+
+  function fmtCountdown(ms){
+    if(ms<=0) return "nå";
+    const s=Math.floor(ms/1000), d=Math.floor(s/86400), h=Math.floor(s%86400/3600), mi=Math.floor(s%3600/60), se=s%60;
+    if(d>0) return `${d}d ${h}t`;
+    if(h>0) return `${h}t ${mi}m`;
+    if(mi>0) return `${mi}m ${se}s`;
+    return `${se}s`;
+  }
+  const koStr = new Date(ko).toLocaleString("no-NO",{timeZone:"Europe/Oslo",weekday:"short",hour:"2-digit",minute:"2-digit"});
+
+  return (
+    <div onClick={onGoToPredict} style={{cursor:"pointer",background:isLive?"linear-gradient(90deg,rgba(255,42,109,.18),rgba(124,92,255,.12))":"var(--panel2)",
+      border:`1px solid ${isLive?"var(--magenta)":"var(--line)"}`,borderRadius:14,padding:"12px 14px",marginBottom:14}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+        <div style={{display:"flex",alignItems:"center",gap:9,minWidth:0}}>
+          <span style={{fontSize:11,fontWeight:800,letterSpacing:".06em",textTransform:"uppercase",color:isLive?"var(--magenta)":"var(--teal)",whiteSpace:"nowrap"}}>
+            {isLive ? "● Spilles nå" : "Neste kamp"}
+          </span>
+          <span style={{fontWeight:700,fontSize:14,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+            {teamFlag(m.home)} {teamNo(m.home)} – {teamNo(m.away)} {teamFlag(m.away)}
+          </span>
+        </div>
+        <div style={{textAlign:"right",whiteSpace:"nowrap"}}>
+          {isLive
+            ? <span style={{fontSize:12,color:"var(--mut)"}}>Tipping stengt</span>
+            : <><span style={{fontSize:11,color:"var(--mut)"}}>Låses om </span><strong style={{fontSize:14,color:"var(--gold)",fontVariantNumeric:"tabular-nums"}}>{fmtCountdown(ko-now)}</strong></>}
+          <div style={{fontSize:11,color:"var(--mut)",textTransform:"capitalize"}}>{koStr}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TermsModal({ onAccept }){
   const items = [
     "Jeg forstår at deltakelse koster 200 kr, og at jeg kan bli fjernet fra konkurransen dersom betalingen ikke er mottatt av Henrik.",
@@ -377,7 +432,14 @@ function Predict({ matches, preds, predictedCount, sortMode, setSortMode, savePr
   const teamList = teamsFromMatches(matches);
   let body;
   const rowProps = { preds, savePred, rules, isAdmin, teamList, allPreds, doubleStages, toggleMatchLock };
-  if(sortMode==="gruppe"){
+  if(sortMode==="idag"){
+    // Dagens kamper (norsk dato)
+    const today = new Date().toLocaleDateString("en-CA",{timeZone:"Europe/Oslo"}); // YYYY-MM-DD
+    const todays=[...matches].filter(m=>m.match_date===today).sort((a,b)=>(a.match_time||"").localeCompare(b.match_time||""));
+    body = todays.length
+      ? todays.map(m=><MatchRow key={m.id} m={m} {...rowProps}/>)
+      : <div className="card"><div className="empty">Ingen kamper i dag. Bytt sortering for å se alle kampene.</div></div>;
+  } else if(sortMode==="gruppe"){
     const grouped=groupByStage(matches);
     body = Object.entries(grouped).map(([stage,ms])=>(
       <div key={stage}><h3 className="sub2">{stage}</h3>{ms.map(m=><MatchRow key={m.id} m={m} {...rowProps}/>)}</div>
@@ -409,6 +471,7 @@ function Predict({ matches, preds, predictedCount, sortMode, setSortMode, savePr
         <div className="row" style={{marginTop:12,alignItems:"center"}}>
           <span className="note" style={{fontWeight:600}}>Sorter etter:</span>
           <select className="inp" style={{flex:"0 0 auto",width:"auto"}} value={sortMode} onChange={e=>setSortMode(e.target.value)}>
+            <option value="idag">I dag</option>
             <option value="gruppe">Gruppe (A→L)</option>
             <option value="dato">Dato (tidligst først)</option>
             <option value="land">Land (alfabetisk)</option>
@@ -616,12 +679,37 @@ function PrizePool({ profiles, leaderboard }){
 }
 
 /* ───────── Leaderboard ───────── */
-function Leaderboard({ rows, rules, total, isAdmin, deleteUser, editUser, prevRanks }){
+function Leaderboard({ rows, rules, total, isAdmin, deleteUser, editUser, prevRanks, matches, allPreds, doubleStages }){
   const [editId, setEditId] = useState(null);
+  const [openId, setOpenId] = useState(null);   // hvilken spiller er ekspandert
   const [eName, setEName] = useState("");
   const [eNick, setENick] = useState("");
   function startEdit(r){ setEditId(r.id); setEName(r.name||""); setENick(r.nick||""); }
   async function saveEdit(r){ await editUser(r, eName, eNick); setEditId(null); }
+  const ds = doubleStages || {};
+  const colCount = isAdmin ? 9 : 8;
+
+  // Bygg poengoppdeling for én spiller: kun kamper som har resultat
+  function breakdown(userId){
+    const mine = (allPreds||[]).filter(p=>p.user_id===userId);
+    const byMatch = {}; mine.forEach(p=>{ byMatch[p.match_id]=p; });
+    const played = (matches||[])
+      .filter(m=>m.result_home!=null && m.result_away!=null)
+      .filter(m=>!(isKnockout(m.stage) && !teamsSet(m)))
+      .sort((a,b)=>a.match_no-b.match_no);
+    return played.map(m=>{
+      const p=byMatch[m.id];
+      const mult=ds[m.stage]?2:1;
+      const base=scorePrediction(p?.pred_home, p?.pred_away, m.result_home, m.result_away, rules);
+      const pts=(base||0)*mult;
+      let kind="feil";
+      if(base===rules.exact_pts) kind="eksakt";
+      else if(base===rules.outcome_pts) kind="utfall";
+      if(!p || p.pred_home==null) kind="ikke tippet";
+      return { m, pred:p, pts, kind, doubled:mult>1 };
+    });
+  }
+
   function mv(email, cur){
     const prev = prevRanks?.[email];
     if(prev==null || prev===cur) return <span style={{color:"var(--mut)",opacity:.5}}>–</span>;
@@ -629,8 +717,10 @@ function Leaderboard({ rows, rules, total, isAdmin, deleteUser, editUser, prevRa
       ? <span style={{color:"var(--lime)"}} title={`opp ${prev-cur}`}>▲{prev-cur>1?prev-cur:""}</span>
       : <span style={{color:"var(--magenta)"}} title={`ned ${cur-prev}`}>▼{cur-prev>1?cur-prev:""}</span>;
   }
+  const kindColor = k => k==="eksakt"?"var(--teal)":k==="utfall"?"var(--gold)":k==="ikke tippet"?"var(--mut)":"var(--magenta)";
+
   return <div className="card"><h2 className="sec">Tabell</h2>
-    <p className="note" style={{marginBottom:14}}>Riktig resultat {rules.exact_pts} p · riktig utfall {rules.outcome_pts} p · feil {rules.wrong_pts}. Bonus teller med i totalen.{isAdmin?" Som admin kan du redigere eller slette spillere her.":""}</p>
+    <p className="note" style={{marginBottom:14}}>Riktig resultat {rules.exact_pts} p · riktig utfall {rules.outcome_pts} p · feil {rules.wrong_pts}. Bonus teller med i totalen. Trykk på en spiller for å se poengene deres.{isAdmin?" Som admin kan du redigere eller slette spillere her.":""}</p>
     {rows.length===0?<div className="empty">Ingen spillere ennå.</div>:
     <div className="tablewrap"><table className="lb"><thead><tr><th>#</th><th></th><th>Spiller</th><th className="n tot">Tot</th><th className="n">Tips</th><th className="n">Eksakt</th><th className="n">Bonus</th><th className="n">Tippet</th>{isAdmin&&<th></th>}</tr></thead>
     <tbody>{rows.map((r,i)=>(
@@ -651,15 +741,40 @@ function Leaderboard({ rows, rules, total, isAdmin, deleteUser, editUser, prevRa
           </td>
         </tr>
       ) : (
-      <tr key={r.id}><td><span className={`rankbadge ${i===0?"g1":i===1?"g2":i===2?"g3":""}`}>{i+1}</span></td>
+      <React.Fragment key={r.id}>
+      <tr style={{cursor:"pointer"}} onClick={()=>setOpenId(openId===r.id?null:r.id)}><td><span className={`rankbadge ${i===0?"g1":i===1?"g2":i===2?"g3":""}`}>{i+1}</span></td>
         <td className="n" style={{fontSize:12}}>{mv(r.id,i+1)}</td>
-        <td>{r.nick||r.name}{r.nick&&<span className="note"> · {r.name}</span>}</td>
+        <td>{openId===r.id?"▾ ":"▸ "}{r.nick||r.name}{r.nick&&<span className="note"> · {r.name}</span>}</td>
         <td className="n tot"><strong>{r.pts}</strong></td><td className="n">{r.matchPts}</td><td className="n">{r.exact}</td><td className="n">{r.bonus}</td>
         <td className="n"><span className="note">{r.predicted}/{total}</span></td>
-        {isAdmin&&<td className="n" style={{whiteSpace:"nowrap"}}>
+        {isAdmin&&<td className="n" style={{whiteSpace:"nowrap"}} onClick={e=>e.stopPropagation()}>
           <button className="del" style={{borderColor:"var(--line)",color:"var(--teal)",marginRight:4}} title="Rediger navn" onClick={()=>startEdit(r)}>✎</button>
           {!isAdminEmail(r.email)&&<button className="del" title="Slett spiller" onClick={()=>deleteUser(r)}>✕</button>}
         </td>}</tr>
+      {openId===r.id && (
+        <tr><td colSpan={colCount} style={{padding:"0 11px 14px",background:"rgba(255,255,255,.015)"}}>
+          {(()=>{ const bd=breakdown(r.id);
+            if(!bd.length) return <div className="note" style={{padding:"12px 0"}}>Ingen ferdigspilte kamper ennå.</div>;
+            return <div style={{padding:"12px 0",display:"flex",flexDirection:"column",gap:7}}>
+              <div className="note" style={{marginBottom:2}}>Kamp-poeng: <strong>{r.matchPts}</strong> · Bonus: <strong>{r.bonus}</strong> · Totalt: <strong style={{color:"var(--ink)"}}>{r.pts}</strong></div>
+              {bd.map(({m,pred,pts,kind,doubled})=>(
+                <div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,fontSize:13,borderBottom:"1px solid var(--line)",paddingBottom:6}}>
+                  <span style={{minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    {teamFlag(m.home)} {teamNo(m.home)} {m.result_home}–{m.result_away} {teamNo(m.away)} {teamFlag(m.away)}
+                    {doubled && <span style={{color:"var(--lime)",fontWeight:700}}> ★2×</span>}
+                  </span>
+                  <span style={{whiteSpace:"nowrap",textAlign:"right"}}>
+                    <span style={{color:"var(--mut)",fontSize:12}}>{pred&&pred.pred_home!=null?`tippet ${pred.pred_home}–${pred.pred_away}`:"–"}</span>
+                    {" · "}
+                    <strong style={{color:kindColor(kind)}}>{kind==="ikke tippet"?"0 p":`+${pts} p`}</strong>
+                  </span>
+                </div>
+              ))}
+            </div>;
+          })()}
+        </td></tr>
+      )}
+      </React.Fragment>
       )
     ))}</tbody></table></div>}
   </div>;
