@@ -748,18 +748,18 @@ function Leaderboard({ rows, rules, total, isAdmin, deleteUser, editUser, prevRa
           {!isAdminEmail(r.email)&&<button className="del" title="Slett spiller" onClick={()=>deleteUser(r)}>✕</button>}
         </td>}</tr>
       {openId===r.id && (
-        <tr><td colSpan={colCount} style={{padding:0,background:"rgba(255,255,255,.015)"}}>
-          <div style={{maxWidth:"min(100%, 92vw)",padding:"0 11px 14px"}}>
+        <tr><td colSpan={colCount} style={{padding:0,background:"rgba(255,255,255,.015)",position:"sticky",left:0}}>
+          <div style={{width:"86vw",maxWidth:480,padding:"0 11px 14px"}}>
           {(()=>{ const bd=breakdown(r.id);
             if(!bd.length) return <div className="note" style={{padding:"12px 0"}}>Ingen ferdigspilte kamper ennå.</div>;
-            return <div style={{padding:"12px 0",display:"flex",flexDirection:"column",gap:7}}>
+            return <div style={{padding:"12px 0",display:"flex",flexDirection:"column",gap:8}}>
               <div className="note" style={{marginBottom:2}}>Kamp-poeng: <strong>{r.matchPts}</strong> · Bonus: <strong>{r.bonus}</strong> · Totalt: <strong style={{color:"var(--ink)"}}>{r.pts}</strong></div>
               {bd.map(({m,pred,pts,kind,doubled})=>{
                 const label = kind==="eksakt"?"Eksakt":kind==="utfall"?"Riktig utfall":kind==="ikke tippet"?"Ikke tippet":"Feil";
                 const col = kindColor(kind);
                 return (
-                <div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,fontSize:13,borderBottom:"1px solid var(--line)",paddingBottom:6}}>
-                  <span style={{minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                <div key={m.id} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,borderBottom:"1px solid var(--line)",paddingBottom:7,flexWrap:"wrap"}}>
+                  <span style={{minWidth:0,flex:"0 1 auto",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                     {teamFlag(m.home)} {teamNo(m.home)} {m.result_home}–{m.result_away} {teamNo(m.away)} {teamFlag(m.away)}
                     {doubled && <span style={{color:"var(--lime)",fontWeight:700}}> ★2×</span>}
                   </span>
