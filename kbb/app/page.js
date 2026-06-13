@@ -523,13 +523,22 @@ function Bonus({ matches, bonus, answers, rules, saveBonus, locked }){
           function ynBtnResult(side){
             const chosen = v===side;
             const base = ynBtn(chosen);
-            if(!corr || !chosen) return base;
-            const c = v===corr ? "var(--teal)" : "var(--magenta)";
-            return {...base, border:`2px solid ${c}`, boxShadow:`0 0 0 1px ${c}`};
+            if(corr && chosen){
+              const c = v===corr ? "var(--teal)" : "var(--magenta)";
+              return {...base, border:`2px solid ${c}`, boxShadow:`0 0 0 1px ${c}`};
+            }
+            // Låst, men fasit ikke satt ennå → tone ned valgt knapp så det er tydelig at det er levert/venter
+            if(locked && !corr && chosen){
+              return {...base, background:"var(--panel2)", color:"var(--mut)",
+                border:"1px dashed var(--line)", opacity:.75, fontWeight:700};
+            }
+            return base;
           }
           return <div key={i} style={{display:"flex",gap:12,alignItems:"center",justifyContent:"space-between",...rowStyle(status)}}>
             <div style={{flex:1,fontSize:14}}>
-              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>{q} {pill(status,rules.yn)}</div>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>{q} {pill(status,rules.yn)}
+                {locked && !corr && v && <span style={{fontSize:11,color:"var(--mut)",fontStyle:"italic"}}>· venter på fasit</span>}
+              </div>
               {corr && ans.yn_notes && ans.yn_notes[i] && <div className="note" style={{marginTop:5,fontStyle:"italic"}}>Fasit: {ans.yn_notes[i]}</div>}
             </div>
             <div style={{display:"flex",gap:6,flexShrink:0}}>
