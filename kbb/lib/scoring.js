@@ -127,6 +127,42 @@ export function scoreBonus(b, a, rules){
   return pts;
 }
 
+// Per-spørsmål bonuslogg for én spiller — KUN spørsmål der admin har satt fasit.
+// Summen av .pts her er nøyaktig lik scoreBonus(b,a,rules) for de avgjorte spørsmålene.
+export function bonusBreakdown(b, a, rules){
+  a=a||{}; rules=rules||DEFAULT_BONUS_RULES;
+  b=b||{};
+  const out=[];
+  const byn=b.yn||{}, ayn=a.yn||{};
+  YN_QUESTIONS.forEach((q,i)=>{
+    const ans=ayn[i];
+    if(!ans) return;                       // ikke avgjort ennå
+    const guess=byn[i];
+    const correct = !!guess && guess===ans;
+    out.push({ label:q, your: guess?(guess==="ja"?"Ja":"Nei"):"–", correct, pts: correct?rules.yn:0 });
+  });
+  const bpick=b.picks||{}, apick=a.picks||{};
+  TEAM_PICK_QUESTIONS.forEach(q=>{
+    const ans=(apick[q.key]||"").trim();
+    if(!ans) return;                       // ikke avgjort ennå
+    const guess=(bpick[q.key]||"").trim();
+    const correct = !!guess && guess.toLowerCase()===ans.toLowerCase();
+    out.push({ label:q.label, your: guess||"–", correct, pts: correct?rules.guess:0 });
+  });
+  const correctTeams=a.teams||[], guessTeams=b.teams||[];
+  if(correctTeams.length){
+    const cs=correctTeams.map(t=>(t||"").trim().toLowerCase()).filter(Boolean);
+    guessTeams.forEach((t,i)=>{
+      const g=(t||"").trim(); if(!g) return;
+      const gl=g.toLowerCase();
+      let p=0; if(cs.includes(gl)) p+=rules.intop8;
+      if(correctTeams[i] && (correctTeams[i]||"").trim().toLowerCase()===gl) p+=rules.exactpos;
+      out.push({ label:`Topp 8 — plass ${i+1}`, your:g, correct:p>0, pts:p });
+    });
+  }
+  return out;
+}
+
 /* ===== Lock timing (Norwegian time, CEST = GMT+2) ===== */
 export const MATCH_LOCK_HOURS = 0;   // kampen låses ved kampstart
 export const CEST_OFFSET = 2;

@@ -490,6 +490,22 @@ function Bonus({ matches, bonus, answers, rules, saveBonus, locked }){
   const setYn=(i,v)=>{ if(!locked) saveBonus({...b,yn:{...yn,[i]:v}}); };
   const setTeam=(i,v)=>{ if(!locked){ const t=[...teams]; t[i]=v; saveBonus({...b,teams:t}); } };
   const setPick=(k,v)=>{ if(!locked) saveBonus({...b,picks:{...picks,[k]:v}}); };
+
+  // Fargelegg en rad når admin har satt fasit. status: "green" | "yellow" | "red" | null
+  function rowStyle(status){
+    const base={padding:"11px 12px",borderBottom:"1px solid var(--line)",borderRadius:10,marginBottom:6};
+    if(status==="green") return {...base,background:"color-mix(in srgb, var(--teal) 14%, transparent)",border:"1px solid var(--teal)"};
+    if(status==="yellow")return {...base,background:"color-mix(in srgb, var(--gold) 14%, transparent)",border:"1px solid var(--gold)"};
+    if(status==="red")   return {...base,background:"color-mix(in srgb, var(--magenta) 12%, transparent)",border:"1px solid var(--magenta)"};
+    return {...base,borderBottom:"1px solid var(--line)"};
+  }
+  function pill(status,pts){
+    if(!status) return null;
+    const c = status==="green"?"var(--teal)":status==="yellow"?"var(--gold)":"var(--magenta)";
+    const shown = status==="red" ? 0 : pts;   // feil = 0 p uansett
+    return <span style={{whiteSpace:"nowrap",flexShrink:0,padding:"3px 10px",borderRadius:999,fontSize:12,fontWeight:800,
+      color:c,border:`1px solid ${c}`,background:"color-mix(in srgb, "+c+" 16%, transparent)"}}>{`+${shown} p`}</span>;
+  }
   return (
     <div>
       <div className="card" style={{marginBottom:16}}>
@@ -502,12 +518,20 @@ function Bonus({ matches, bonus, answers, rules, saveBonus, locked }){
         <p className="note" style={{marginBottom:14}}>{rules.yn} poeng for hvert riktig svar.</p>
         {YN_QUESTIONS.map((q,i)=>{
           const v=yn[i], corr=ans.yn&&ans.yn[i];
-          const got=corr&&v?(v===corr?<span style={{color:"var(--teal)"}}> +{rules.yn} p</span>:<span style={{color:"var(--magenta)"}}> 0 p</span>):null;
-          return <div key={i} style={{display:"flex",gap:12,alignItems:"center",justifyContent:"space-between",padding:"11px 0",borderBottom:"1px solid var(--line)"}}>
-            <div style={{flex:1,fontSize:14}}>{q}{got}</div>
+          const status = corr ? (v && v===corr ? "green" : "red") : null;
+          // Når fasit finnes: marker spillerens valgte knapp grønn (rett) eller rød (feil)
+          function ynBtnResult(side){
+            const chosen = v===side;
+            const base = ynBtn(chosen);
+            if(!corr || !chosen) return base;
+            const c = v===corr ? "var(--teal)" : "var(--magenta)";
+            return {...base, border:`2px solid ${c}`, boxShadow:`0 0 0 1px ${c}`};
+          }
+          return <div key={i} style={{display:"flex",gap:12,alignItems:"center",justifyContent:"space-between",...rowStyle(status)}}>
+            <div style={{flex:1,fontSize:14,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>{q} {pill(status,rules.yn)}</div>
             <div style={{display:"flex",gap:6,flexShrink:0}}>
-              <button disabled={locked} style={ynBtn(v==="ja")} onClick={()=>setYn(i,"ja")}>Ja</button>
-              <button disabled={locked} style={ynBtn(v==="nei")} onClick={()=>setYn(i,"nei")}>Nei</button>
+              <button disabled={locked} style={ynBtnResult("ja")} onClick={()=>setYn(i,"ja")}>Ja</button>
+              <button disabled={locked} style={ynBtnResult("nei")} onClick={()=>setYn(i,"nei")}>Nei</button>
             </div></div>;
         })}
       </div>
@@ -516,22 +540,37 @@ function Bonus({ matches, bonus, answers, rules, saveBonus, locked }){
         <h3 className="sub2">VMs topplasseringer</h3>
         <p className="note" style={{marginBottom:12}}>{rules.intop8} poeng for hvert lag som havner på topp 8, +{rules.exactpos} poeng for riktig plassering.</p>
         {teamList.length===0 && <p className="note" style={{color:"var(--magenta)",marginBottom:12}}>Ingen lag funnet ennå. Admin må kjøre seed_matches.sql.</p>}
-        {Array.from({length:8}).map((_,i)=>(
-          <div key={i} style={{display:"flex",gap:10,alignItems:"center",marginBottom:8}}>
+        {Array.from({length:8}).map((_,i)=>{
+          const correctTeams=ans.teams||[];
+          const cs=correctTeams.map(t=>(t||"").trim().toLowerCase()).filter(Boolean);
+          const g=(teams[i]||"").trim().toLowerCase();
+          let status=null, pts=0;
+          if(cs.length && g){
+            const exact = correctTeams[i] && (correctTeams[i]||"").trim().toLowerCase()===g;
+            const inTop = cs.includes(g);
+            if(exact){ status="green"; pts=rules.intop8+rules.exactpos; }
+            else if(inTop){ status="yellow"; pts=rules.intop8; }
+            else { status="red"; pts=0; }
+          }
+          return (
+          <div key={i} style={{display:"flex",gap:10,alignItems:"center",...rowStyle(status)}}>
             <span className="rankbadge">{i+1}</span>
             <select className="inp" disabled={locked} style={{flex:1}} value={teams[i]||""} onChange={e=>setTeam(i,e.target.value)}>
               <option value="">— velg lag —</option>{teamList.map(t=><option key={t} value={t}>{teamLabel(t)}</option>)}
             </select>
+            {pill(status,pts)}
           </div>
-        ))}
+          );
+        })}
       </div>
       <div className="card">
         <h3 className="sub2">Velg lag</h3>
         <p className="note" style={{marginBottom:12}}>{rules.guess} poeng for hvert riktig svar.</p>
         {TEAM_PICK_QUESTIONS.map(q=>{
           const val=picks[q.key]||"", corr=ans.picks?.[q.key]||"";
-          const got=corr&&val?(corr.trim().toLowerCase()===val.trim().toLowerCase()?<span style={{color:"var(--teal)"}}> +{rules.guess} p</span>:<span style={{color:"var(--magenta)"}}> 0 p</span>):null;
-          return <div className="field" key={q.key}><label>{q.label}{got}</label>
+          const status = corr ? (val && corr.trim().toLowerCase()===val.trim().toLowerCase() ? "green":"red") : null;
+          return <div className="field" key={q.key} style={status?{...rowStyle(status),marginBottom:10}:{marginBottom:14}}>
+            <label style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>{q.label} {pill(status,rules.guess)}</label>
             <select className="inp" disabled={locked} value={val} onChange={e=>setPick(q.key,e.target.value)}>
               <option value="">— velg lag —</option>{teamList.map(t=><option key={t} value={t}>{teamLabel(t)}</option>)}
             </select></div>;
@@ -758,7 +797,7 @@ function Leaderboard({ rows, rules, total, isAdmin, deleteUser, editUser, prevRa
                 const label = kind==="eksakt"?"Eksakt":kind==="utfall"?"Riktig utfall":kind==="ikke tippet"?"Ikke tippet":"Feil";
                 const col = kindColor(kind);
                 return (
-                <div key={m.id} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,borderBottom:"1px solid var(--line)",paddingBottom:7,flexWrap:"wrap"}}>
+                <div key={"m"+m.id} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,borderBottom:"1px solid var(--line)",paddingBottom:7,flexWrap:"wrap"}}>
                   <span style={{minWidth:0,flex:"0 1 auto",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                     {teamFlag(m.home)} {teamNo(m.home)} {m.result_home}–{m.result_away} {teamNo(m.away)} {teamFlag(m.away)}
                     {doubled && <span style={{color:"var(--lime)",fontWeight:700}}> ★2×</span>}
