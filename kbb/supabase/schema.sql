@@ -137,6 +137,7 @@ create table if not exists bonus_answers (
   top_keeper text
 );
 alter table bonus_answers add column if not exists picks jsonb default '{}'::jsonb;
+alter table bonus_answers add column if not exists yn_notes jsonb default '{}'::jsonb;
 insert into bonus_answers (id) values (1) on conflict do nothing;
 
 -- ---------- bonus scoring rules (single row, admin-editable) ----------

@@ -23,7 +23,7 @@ export default function Home() {
   const [rules, setRules] = useState({ exact_pts:3, outcome_pts:1, wrong_pts:0 });
   const [myBonus, setMyBonus] = useState(null);
   const [allBonus, setAllBonus] = useState([]);
-  const [bonusAnswers, setBonusAnswers] = useState({ yn:{}, teams:[], top_scorer:"", top_assist:"", top_keeper:"" });
+  const [bonusAnswers, setBonusAnswers] = useState({ yn:{}, teams:[], picks:{}, yn_notes:{} });
   const [bonusRules, setBonusRules] = useState({ ...DEFAULT_BONUS_RULES });
   const [doubleStages, setDoubleStages] = useState({});
   const [prevRanks, setPrevRanks] = useState({});
@@ -83,7 +83,7 @@ export default function Home() {
     if (rl.data) setRules(rl.data);
     setAllBonus(ab.data || []);
     setMyBonus((ab.data||[]).find(x=>x.user_id===me.id) || { user_id:me.id, yn:{}, teams:[], picks:{} });
-    if (ba.data) setBonusAnswers({ yn:ba.data.yn||{}, teams:ba.data.teams||[], picks:ba.data.picks||{} });
+    if (ba.data) setBonusAnswers({ yn:ba.data.yn||{}, teams:ba.data.teams||[], picks:ba.data.picks||{}, yn_notes:ba.data.yn_notes||{} });
     if (br.data) setBonusRules(br.data);
     if (ds.data) setDoubleStages(ds.data.stages||{});
     if (rs.data) setPrevRanks(rs.data.ranks||{});
@@ -528,7 +528,10 @@ function Bonus({ matches, bonus, answers, rules, saveBonus, locked }){
             return {...base, border:`2px solid ${c}`, boxShadow:`0 0 0 1px ${c}`};
           }
           return <div key={i} style={{display:"flex",gap:12,alignItems:"center",justifyContent:"space-between",...rowStyle(status)}}>
-            <div style={{flex:1,fontSize:14,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>{q} {pill(status,rules.yn)}</div>
+            <div style={{flex:1,fontSize:14}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>{q} {pill(status,rules.yn)}</div>
+              {corr && ans.yn_notes && ans.yn_notes[i] && <div className="note" style={{marginTop:5,fontStyle:"italic"}}>Fasit: {ans.yn_notes[i]}</div>}
+            </div>
             <div style={{display:"flex",gap:6,flexShrink:0}}>
               <button disabled={locked} style={ynBtnResult("ja")} onClick={()=>setYn(i,"ja")}>Ja</button>
               <button disabled={locked} style={ynBtnResult("nei")} onClick={()=>setYn(i,"nei")}>Nei</button>
@@ -865,6 +868,7 @@ function Admin({ supabase, matches, rules, bonusRules, profiles, allPreds, leade
   async function setBaYn(i,v){ await supabase.from("bonus_answers").update({yn:{...(ba.yn||{}),[i]:v}}).eq("id",1); reload(); }
   async function setBaTeam(i,v){ const t=[...(ba.teams||[])]; t[i]=v; await supabase.from("bonus_answers").update({teams:t}).eq("id",1); reload(); }
   async function setBaPick(k,v){ await supabase.from("bonus_answers").update({picks:{...(ba.picks||{}),[k]:v}}).eq("id",1); reload(); }
+  async function setBaNote(i,v){ await supabase.from("bonus_answers").update({yn_notes:{...(ba.yn_notes||{}),[i]:v}}).eq("id",1); reload(); }
 
   function exportCSV(){
     const byUser={}; allPreds.forEach(p=>{ (byUser[p.user_id]||={})[p.match_id]=p; });
@@ -952,15 +956,21 @@ function Admin({ supabase, matches, rules, bonusRules, profiles, allPreds, leade
         <h2 className="sec">Fasit — bonus</h2>
         <p className="note" style={{marginBottom:12}}>Sett riktige svar. Tabellen oppdateres umiddelbart.</p>
         <h3 className="sub2">JA / NEI</h3>
-        {YN_QUESTIONS.map((q,i)=>{ const v=(ba.yn||{})[i]||"";
+        {YN_QUESTIONS.map((q,i)=>{ const v=(ba.yn||{})[i]||""; const note=(ba.yn_notes||{})[i]||"";
           const btn=(on)=>({padding:"8px 14px",borderRadius:9,fontFamily:"inherit",cursor:"pointer",fontSize:13,border:on?"1px solid var(--teal)":"1px solid var(--line)",background:on?"var(--teal)":"var(--panel2)",color:on?"#04120c":"var(--ink)",fontWeight:on?800:600});
-          return <div key={i} style={{display:"flex",gap:12,alignItems:"center",justifyContent:"space-between",padding:"9px 0",borderBottom:"1px solid var(--line)"}}>
-            <div style={{flex:1,fontSize:13.5}}>{q}</div>
-            <div style={{display:"flex",gap:6}}>
-              <button style={btn(v==="ja")} onClick={()=>setBaYn(i,"ja")}>Ja</button>
-              <button style={btn(v==="nei")} onClick={()=>setBaYn(i,"nei")}>Nei</button>
-              <button style={{...btn(false),opacity:.6}} onClick={()=>setBaYn(i,"")}>Tøm</button>
-            </div></div>;
+          return <div key={i} style={{padding:"11px 0",borderBottom:"1px solid var(--line)"}}>
+            <div style={{display:"flex",gap:12,alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{flex:1,fontSize:13.5}}>{q}</div>
+              <div style={{display:"flex",gap:6,flexShrink:0}}>
+                <button style={btn(v==="ja")} onClick={()=>setBaYn(i,"ja")}>Ja</button>
+                <button style={btn(v==="nei")} onClick={()=>setBaYn(i,"nei")}>Nei</button>
+                <button style={{...btn(false),opacity:.6}} onClick={()=>setBaYn(i,"")}>Tøm</button>
+              </div>
+            </div>
+            <input className="inp" style={{marginTop:8,width:"100%",fontSize:13}} defaultValue={note}
+              placeholder="Begrunnelse (valgfri) — vises for spillerne, f.eks. «Tom Cruise filmet i åpningskampen»"
+              onBlur={e=>{ if(e.target.value!==note) setBaNote(i,e.target.value); }}/>
+          </div>;
         })}
         <h3 className="sub2">VMs topplasseringer (fasit)</h3>
         {Array.from({length:8}).map((_,i)=>(
