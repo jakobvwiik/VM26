@@ -284,7 +284,6 @@ function NextMatchStrip({ matches, onGoToPredict }){
   const [now, setNow] = useState(Date.now());
   useEffect(()=>{ const t=setInterval(()=>setNow(Date.now()), 1000); return ()=>clearInterval(t); }, []);
 
-  // Bygg liste med avsparkstidspunkt, hopp over sluttspill uten lag (TBA)
   const withKo = matches
     .filter(m=>m.match_date && m.match_time && teamsSet(m))
     .map(m=>({ m, ko: kickoffInstant(m.match_date, m.match_time)?.getTime() }))
@@ -292,13 +291,11 @@ function NextMatchStrip({ matches, onGoToPredict }){
     .sort((a,b)=>a.ko-b.ko);
   if(!withKo.length) return null;
 
-  // Live = startet for under 2,5 t siden og ikke ferdigstilt med resultat
   const live = withKo.find(x=> now>=x.ko && now < x.ko + 2.5*3600*1000 && x.m.result_home==null);
-  const next = withKo.find(x=> x.ko>now);
-  const pick = live || next;
-  if(!pick) return null;
-  const { m, ko } = pick;
-  const isLive = !!live;
+  // startindeks: live-kampen hvis den finnes, ellers første kommende
+  let startIdx = live ? withKo.indexOf(live) : withKo.findIndex(x=> x.ko>now);
+  if(startIdx<0) return null;
+  const picks = withKo.slice(startIdx, startIdx+3);
 
   function fmtCountdown(ms){
     if(ms<=0) return "nå";
@@ -308,23 +305,34 @@ function NextMatchStrip({ matches, onGoToPredict }){
     if(mi>0) return `${mi}m ${se}s`;
     return `${se}s`;
   }
-  const koStr = new Date(ko).toLocaleString("no-NO",{timeZone:"Europe/Oslo",weekday:"short",hour:"2-digit",minute:"2-digit"});
 
   return (
-    <div onClick={onGoToPredict} style={{cursor:"pointer",background:isLive?"linear-gradient(90deg,rgba(255,42,109,.18),rgba(124,92,255,.12))":"var(--panel2)",
-      border:`1px solid ${isLive?"var(--magenta)":"var(--line)"}`,borderRadius:14,padding:"14px",marginBottom:14,textAlign:"center"}}>
-      <div style={{fontSize:11,fontWeight:800,letterSpacing:".06em",textTransform:"uppercase",color:isLive?"var(--magenta)":"var(--teal)",marginBottom:6}}>
-        {isLive ? "● Spilles nå" : "Neste kamp"}
-      </div>
-      <div style={{fontWeight:700,fontSize:"clamp(15px,4.5vw,18px)",marginBottom:6,wordBreak:"break-word"}}>
-        {teamFlag(m.home)} {teamNo(m.home)} – {teamNo(m.away)} {teamFlag(m.away)}
-      </div>
-      <div>
-        {isLive
-          ? <span style={{fontSize:13,color:"var(--mut)"}}>Tipping stengt</span>
-          : <><span style={{fontSize:12,color:"var(--mut)"}}>Låses om </span><strong style={{fontSize:15,color:"var(--gold)",fontVariantNumeric:"tabular-nums"}}>{fmtCountdown(ko-now)}</strong></>}
-        <span style={{fontSize:12,color:"var(--mut)",textTransform:"capitalize"}}> · {koStr}</span>
-      </div>
+    <div onClick={onGoToPredict} style={{cursor:"pointer",display:"flex",gap:8,marginBottom:14,alignItems:"stretch"}}>
+      {picks.map((p,idx)=>{
+        const { m, ko } = p;
+        const isLive = idx===0 && !!live;
+        const isPrimary = idx===0;
+        const koStr = new Date(ko).toLocaleString("no-NO",{timeZone:"Europe/Oslo",weekday:"short",hour:"2-digit",minute:"2-digit"});
+        return (
+          <div key={m.id} style={{flex:1,minWidth:0,textAlign:"center",borderRadius:14,padding:"12px 8px",
+            background:isLive?"linear-gradient(160deg,rgba(255,42,109,.18),rgba(124,92,255,.12))":"var(--panel2)",
+            border:`1px solid ${isLive?"var(--magenta)":isPrimary?"var(--teal)":"var(--line)"}`}}>
+            <div style={{fontSize:9.5,fontWeight:800,letterSpacing:".04em",textTransform:"uppercase",marginBottom:5,
+              color:isLive?"var(--magenta)":isPrimary?"var(--teal)":"var(--mut)"}}>
+              {isLive ? "● Nå" : isPrimary ? "Neste" : idx===1 ? "Deretter" : "Så"}
+            </div>
+            <div style={{fontWeight:700,fontSize:"clamp(11px,3vw,13px)",lineHeight:1.25,marginBottom:5,wordBreak:"break-word"}}>
+              <div>{teamFlag(m.home)} {teamNo(m.home)}</div>
+              <div style={{color:"var(--mut)",fontSize:10,margin:"1px 0"}}>–</div>
+              <div>{teamFlag(m.away)} {teamNo(m.away)}</div>
+            </div>
+            {isLive
+              ? <div style={{fontSize:11,color:"var(--mut)"}}>Stengt</div>
+              : <div style={{fontSize:"clamp(11px,3.2vw,13px)",color:"var(--gold)",fontWeight:800,fontVariantNumeric:"tabular-nums"}}>{fmtCountdown(ko-now)}</div>}
+            <div style={{fontSize:9.5,color:"var(--mut)",textTransform:"capitalize",marginTop:2}}>{koStr}</div>
+          </div>
+        );
+      })}
     </div>
   );
 }
