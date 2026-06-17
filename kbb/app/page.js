@@ -234,28 +234,21 @@ export default function Home() {
         wrongStreak:maxWrong, exactStreak:maxExact, rightStreak:maxRight };
     });
 
-    // vinner(e) for høyest verdi
-    function top(metric, min=1){
-      const best=Math.max(...stats.map(s=>s[metric]));
-      if(best<min) return null;
-      return { value:best, winners:stats.filter(s=>s[metric]===best) };
-    }
-    // vinner(e) for laveste verdi (krever at minst én kamp er spilt)
-    function bottom(metric){
-      if(!playedAsc.length) return null;
-      const worst=Math.min(...stats.map(s=>s[metric]));
-      return { value:worst, winners:stats.filter(s=>s[metric]===worst) };
+    // Topp 3 for en metrikk. Sorteres på metrikken, deretter totalsum som tiebreaker.
+    // min = laveste verdi som teller (ellers regnes award som "ikke avgjort").
+    function top3(metric, min=1){
+      const pool=stats.filter(s=>s[metric]>=min);
+      if(!pool.length) return null;
+      const sorted=[...pool].sort((a,b)=> b[metric]-a[metric] || b.total-a.total);
+      return sorted.slice(0,3).map(s=>({ nick:s.nick, name:s.name, value:s[metric] }));
     }
     return {
-      skarpskytter: top("exact"),
-      gullgraver:   top("exactStreak", 2),
-      perfeksjonist:top("rightStreak", 2),
-      bonusjeger:   top("bonus"),
-      skivebom:     top("wrong"),
-      orken:        top("wrongStreak", 2),
-      kontrollor:   bottom("wrong"),
-      katastrofor:  bottom("total"),
-      passasjer:    top("notTipped", 1),
+      skarpskytter: top3("exact"),
+      gullgraver:   top3("exactStreak", 2),
+      perfeksjonist:top3("rightStreak", 2),
+      bonusjeger:   top3("bonus"),
+      skivebom:     top3("wrong"),
+      orken:        top3("wrongStreak", 2),
     };
   }, [profiles, allPreds, matches, rules, leaderboard]);
 
@@ -315,7 +308,7 @@ export default function Home() {
           <button className={tab==="bonus"?"on":""} onClick={()=>setTab("bonus")}>Bonus</button>
           <button className={tab==="matches"?"on":""} onClick={()=>setTab("matches")}>Kamper</button>
           <button className={tab==="leaderboard"?"on":""} onClick={()=>setTab("leaderboard")}>Tabell</button>
-          <button className={tab==="awards"?"on":""} onClick={()=>setTab("awards")}>Awards</button>
+          <button className={tab==="awards"?"on":""} onClick={()=>setTab("awards")}>Prestasjoner</button>
           <button className={tab==="pott"?"on":""} onClick={()=>setTab("pott")}>Pott</button>
           <button className={tab==="regler"?"on":""} onClick={()=>setTab("regler")}>Regler</button>
           {isAdmin && <button className={tab==="admin"?"on":""} onClick={()=>setTab("admin")}>Admin</button>}
@@ -765,30 +758,32 @@ function Awards({ awards }){
     {key:"bonusjeger",   emoji:"🧠", title:"Bonusjegeren",     desc:"Flest bonuspoeng",       unit:"bonus-p"},
     {key:"skivebom",     emoji:"🧱", title:"Skivebommern",     desc:"Flest feil",             unit:"feil"},
     {key:"orken",        emoji:"🏜️", title:"Ørkenvandreren",   desc:"Flest feil på rad",      unit:"på rad"},
-    {key:"kontrollor",   emoji:"🛡️", title:"Kontrolløren",     desc:"Minst feil",             unit:"feil"},
-    {key:"katastrofor",  emoji:"💀", title:"Katastroføren",    desc:"Minst poeng totalt",     unit:"p"},
-    {key:"passasjer",    emoji:"🛋️", title:"Passasjeren",      desc:"Mest «ikke tippet»",     unit:"glemt"},
   ];
-  const fullName=w=> w.name||"";
+  const medal=["🥇","🥈","🥉"];
   return <div className="card"><h2 className="sec">Spillerprestasjoner</h2>
-    <p className="note" style={{marginBottom:14}}>Kåringer basert på resultatene så langt — oppdateres automatisk. Ved likt stilling deles utmerkelsen.</p>
+    <p className="note" style={{marginBottom:14}}>Topp 3 i hver kategori, oppdateres automatisk. Ved lik verdi rangeres det etter totalsum i tabellen.</p>
     {!awards ? <div className="empty">Ingen data ennå.</div> :
-    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
-      {defs.map(d=>{ const a=awards[d.key];
+    <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10}}>
+      {defs.map(d=>{ const list=awards[d.key];
         return <div key={d.key} style={{display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center",
-          gap:4,padding:"14px 8px",borderRadius:13,background:"var(--panel2)",border:"1px solid var(--line)",minWidth:0}}>
+          gap:3,padding:"14px 10px",borderRadius:13,background:"var(--panel2)",border:"1px solid var(--line)",minWidth:0}}>
           <div style={{fontSize:34,lineHeight:1}}>{d.emoji}</div>
-          <div style={{fontWeight:800,fontSize:13,lineHeight:1.15}}>{d.title}</div>
-          <div className="note" style={{fontSize:10.5,lineHeight:1.2}}>{d.desc}</div>
-          <div style={{marginTop:4,minWidth:0,width:"100%"}}>
-            {a && a.winners.length
-              ? <>
-                  <div style={{fontWeight:800,fontSize:12.5,wordBreak:"break-word"}}>{a.winners.map(w=>w.nick||w.name).join(", ")}</div>
-                  {a.winners.length===1 && a.winners[0].nick && <div className="note" style={{fontSize:10.5,wordBreak:"break-word"}}>{fullName(a.winners[0])}</div>}
-                  <div style={{fontSize:12,color:"var(--gold)",fontWeight:700,marginTop:2}}>{a.value} {d.unit}</div>
-                </>
-              : <div className="note" style={{fontSize:11}}>—</div>}
-          </div>
+          <div style={{fontWeight:800,fontSize:14,lineHeight:1.15}}>{d.title}</div>
+          <div className="note" style={{fontSize:11,lineHeight:1.2,marginBottom:5}}>{d.desc}</div>
+          {list && list.length ?
+            <div style={{width:"100%",display:"flex",flexDirection:"column",gap:5}}>
+              {list.map((w,idx)=>(
+                <div key={idx} style={{display:"flex",alignItems:"center",gap:6,textAlign:"left",minWidth:0}}>
+                  <span style={{fontSize:15,flexShrink:0}}>{medal[idx]}</span>
+                  <span style={{minWidth:0,flex:1}}>
+                    <span style={{fontWeight:800,fontSize:12.5,wordBreak:"break-word"}}>{w.nick||w.name}</span>
+                    {w.nick && <span className="note" style={{fontSize:10.5}}> · {w.name}</span>}
+                  </span>
+                  <span style={{fontSize:11.5,color:"var(--gold)",fontWeight:700,flexShrink:0,whiteSpace:"nowrap"}}>{w.value}</span>
+                </div>
+              ))}
+            </div>
+            : <div className="note" style={{fontSize:11}}>— ikke avgjort ennå</div>}
         </div>;
       })}
     </div>}
