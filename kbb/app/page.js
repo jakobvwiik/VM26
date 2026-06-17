@@ -211,8 +211,22 @@ export default function Home() {
       .filter(m=>!(isKnockout(m.stage) && !teamsSet(m)))
       .sort((a,b)=>a.match_no-b.match_no);
 
+    // Hvor mange traff (1 p+) på hver kamp — for å finne "solo-treff" (Flaksloddet)
+    const hittersPerMatch={};
+    playedAsc.forEach(m=>{
+      let n=0;
+      profiles.forEach(u=>{
+        const p=byUser[u.id]?.[m.id];
+        if(p && p.pred_home!=null && p.pred_away!=null){
+          const sc=scorePrediction(p.pred_home,p.pred_away,m.result_home,m.result_away,rules);
+          if(sc>0) n++;
+        }
+      });
+      hittersPerMatch[m.id]=n;
+    });
+
     const stats=profiles.map(u=>{
-      let wrong=0, exact=0, notTipped=0;
+      let wrong=0, exact=0, notTipped=0, doublePts=0, soloHits=0;
       let curWrong=0,maxWrong=0;       // feil på rad
       let curExact=0,maxExact=0;       // eksakte på rad
       let curRight=0,maxRight=0;       // riktige (1 p+) på rad
@@ -223,6 +237,9 @@ export default function Home() {
           notTipped++; curWrong=0; curExact=0; curRight=0; return;
         }
         const sc=scorePrediction(p.pred_home, p.pred_away, m.result_home, m.result_away, rules);
+        const mult=doubleStages[m.stage]?2:1;
+        if(mult>1) doublePts+=sc*mult;                 // poeng kun fra doble runder
+        if(sc>0 && hittersPerMatch[m.id]===1) soloHits++; // eneste som traff
         if(sc===rules.exact_pts){ exact++; curExact++; maxExact=Math.max(maxExact,curExact); }
         else { curExact=0; }
         if(sc>0){ curRight++; maxRight=Math.max(maxRight,curRight); curWrong=0; }
@@ -230,7 +247,7 @@ export default function Home() {
       });
       const lbRow = leaderboard.find(x=>x.id===u.id) || {};
       return { id:u.id, name:u.name, nick:u.nick,
-        total:lbRow.pts||0, exact, wrong, notTipped, bonus:lbRow.bonus||0,
+        total:lbRow.pts||0, exact, wrong, notTipped, bonus:lbRow.bonus||0, doublePts, soloHits,
         wrongStreak:maxWrong, exactStreak:maxExact, rightStreak:maxRight };
     });
 
@@ -247,10 +264,12 @@ export default function Home() {
       gullgraver:   top3("exactStreak", 2),
       perfeksjonist:top3("rightStreak", 2),
       bonusjeger:   top3("bonus"),
+      dobbeltgjenger:top3("doublePts", 1),
+      flakslodd:    top3("soloHits", 1),
       skivebom:     top3("wrong"),
       orken:        top3("wrongStreak", 2),
     };
-  }, [profiles, allPreds, matches, rules, leaderboard]);
+  }, [profiles, allPreds, matches, rules, leaderboard, doubleStages]);
 
   async function signOut(){ await supabase.auth.signOut(); }
 
@@ -756,6 +775,8 @@ function Awards({ awards }){
     {key:"gullgraver",   emoji:"⛏️", title:"Gullgraveren",     desc:"Flest eksakte på rad",   unit:"på rad"},
     {key:"perfeksjonist",emoji:"💎", title:"Perfeksjonisten",  desc:"Lengst uten feil (1 p+)",unit:"på rad"},
     {key:"bonusjeger",   emoji:"🧠", title:"Bonusjegeren",     desc:"Flest bonuspoeng",       unit:"bonus-p"},
+    {key:"dobbeltgjenger",emoji:"⚡", title:"Dobbeltgjengeren", desc:"Mest poeng i doble runder",unit:"p"},
+    {key:"flakslodd",    emoji:"🍀", title:"Flaksloddet",       desc:"Treff ingen andre tok",  unit:"treff"},
     {key:"skivebom",     emoji:"🧱", title:"Skivebommern",     desc:"Flest feil",             unit:"feil"},
     {key:"orken",        emoji:"🏜️", title:"Ørkenvandreren",   desc:"Flest feil på rad",      unit:"på rad"},
   ];
