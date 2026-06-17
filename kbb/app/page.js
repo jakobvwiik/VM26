@@ -321,10 +321,9 @@ function NextMatchStrip({ matches, onGoToPredict }){
               color:isLive?"var(--magenta)":isPrimary?"var(--teal)":"var(--mut)"}}>
               {isLive ? "● Nå" : isPrimary ? "Neste" : idx===1 ? "Deretter" : "Så"}
             </div>
-            <div style={{fontWeight:700,fontSize:"clamp(11px,3vw,13px)",lineHeight:1.25,marginBottom:5,wordBreak:"break-word"}}>
+            <div style={{fontWeight:700,fontSize:"clamp(11px,3vw,13px)",lineHeight:1.3,marginBottom:5,wordBreak:"break-word"}}>
               <div>{teamFlag(m.home)} {teamNo(m.home)}</div>
-              <div style={{color:"var(--mut)",fontSize:10,margin:"1px 0"}}>–</div>
-              <div>{teamFlag(m.away)} {teamNo(m.away)}</div>
+              <div style={{margin:"2px 0"}}>{teamFlag(m.away)} {teamNo(m.away)}</div>
             </div>
             {isLive
               ? <div style={{fontSize:11,color:"var(--mut)"}}>Stengt</div>
@@ -408,7 +407,9 @@ function MatchRow({ m, preds, savePred, rules, isAdmin, teamList, allPreds, doub
       </div>
     );
   }
-  const sc = scorePrediction(p.pred_home, p.pred_away, m.result_home, m.result_away, rules);
+  const baseSc = scorePrediction(p.pred_home, p.pred_away, m.result_home, m.result_away, rules);
+  const dblMult = (doubleStages && doubleStages[m.stage]) ? 2 : 1;
+  const sc = baseSc==null ? null : baseSc*dblMult;
   return (
     <div className="match" style={{gridTemplateColumns:"1fr"}}>
       {ko && <div style={{textAlign:"center",fontSize:11,color:"var(--mut)",textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}}>{m.stage}</div>}
@@ -425,7 +426,7 @@ function MatchRow({ m, preds, savePred, rules, isAdmin, teamList, allPreds, doub
       {dbl}
       {dist}
       {lock}
-      {m.result_home!=null && <div className="lockpill">Resultat {m.result_home}–{m.result_away} · {sc} p</div>}
+      {m.result_home!=null && <div className="lockpill">Resultat {m.result_home}–{m.result_away} · {sc} p{dblMult>1 && <span style={{color:"var(--lime)",fontWeight:700}}> ★2×</span>}</div>}
       {adminLock}
     </div>
   );
@@ -436,13 +437,18 @@ function Predict({ matches, preds, predictedCount, sortMode, setSortMode, savePr
   const teamList = teamsFromMatches(matches);
   let body;
   const rowProps = { preds, savePred, rules, isAdmin, teamList, allPreds, doubleStages, toggleMatchLock };
-  if(sortMode==="idag"){
-    // Dagens kamper (norsk dato)
-    const today = new Date().toLocaleDateString("en-CA",{timeZone:"Europe/Oslo"}); // YYYY-MM-DD
-    const todays=[...matches].filter(m=>m.match_date===today).sort((a,b)=>(a.match_time||"").localeCompare(b.match_time||""));
-    body = todays.length
-      ? todays.map(m=><MatchRow key={m.id} m={m} {...rowProps}/>)
-      : <div className="card"><div className="empty">Ingen kamper i dag. Bytt sortering for å se alle kampene.</div></div>;
+  if(sortMode==="siste24" || sortMode==="neste24"){
+    const now=Date.now(), H=3600*1000;
+    const lo = sortMode==="siste24" ? now-24*H : now;
+    const hi = sortMode==="siste24" ? now      : now+24*H;
+    const within=[...matches].map(m=>({m,ko:kickoffInstant(m.match_date,m.match_time)?.getTime()}))
+      .filter(x=>x.ko && x.ko>=lo && x.ko<hi)
+      .sort((a,b)=> sortMode==="siste24" ? b.ko-a.ko : a.ko-b.ko)   // siste: nyeste først · neste: tidligst først
+      .map(x=>x.m);
+    const tekst = sortMode==="siste24" ? "siste 24 timer" : "neste 24 timer";
+    body = within.length
+      ? within.map(m=><MatchRow key={m.id} m={m} {...rowProps}/>)
+      : <div className="card"><div className="empty">Ingen kamper i {tekst}. Bytt sortering for å se andre kamper.</div></div>;
   } else if(sortMode==="gruppe"){
     const grouped=groupByStage(matches);
     body = Object.entries(grouped).map(([stage,ms])=>(
@@ -475,7 +481,8 @@ function Predict({ matches, preds, predictedCount, sortMode, setSortMode, savePr
         <div className="row" style={{marginTop:12,alignItems:"center"}}>
           <span className="note" style={{fontWeight:600}}>Sorter etter:</span>
           <select className="inp" style={{flex:"0 0 auto",width:"auto"}} value={sortMode} onChange={e=>setSortMode(e.target.value)}>
-            <option value="idag">I dag</option>
+            <option value="siste24">Siste 24 timer</option>
+            <option value="neste24">Neste 24 timer</option>
             <option value="gruppe">Gruppe (A→L)</option>
             <option value="dato">Dato (tidligst først)</option>
             <option value="land">Land (alfabetisk)</option>
@@ -751,7 +758,7 @@ function Leaderboard({ rows, rules, total, isAdmin, deleteUser, editUser, prevRa
     const played = (matches||[])
       .filter(m=>m.result_home!=null && m.result_away!=null)
       .filter(m=>!(isKnockout(m.stage) && !teamsSet(m)))
-      .sort((a,b)=>a.match_no-b.match_no);
+      .sort((a,b)=>b.match_no-a.match_no);   // nyeste først
     return played.map(m=>{
       const p=byMatch[m.id];
       const mult=ds[m.stage]?2:1;
@@ -813,6 +820,11 @@ function Leaderboard({ rows, rules, total, isAdmin, deleteUser, editUser, prevRa
             if(!bd.length) return <div className="note" style={{padding:"12px 0"}}>Ingen ferdigspilte kamper ennå.</div>;
             return <div style={{padding:"12px 0",display:"flex",flexDirection:"column",gap:8}}>
               <div className="note" style={{marginBottom:2}}>Kamp-poeng: <strong>{r.matchPts}</strong> · Bonus: <strong>{r.bonus}</strong> · Totalt: <strong style={{color:"var(--ink)"}}>{r.pts}</strong></div>
+              <div className="note" style={{fontStyle:"italic",marginBottom:4}}>Viser seneste resultater først{bd.length>10?" — scroll for flere":""}</div>
+              <div style={{maxHeight:bd.length>10?360:"none",overflowY:bd.length>10?"auto":"visible",
+                WebkitOverflowScrolling:"touch",display:"flex",flexDirection:"column",gap:8,
+                paddingRight:bd.length>10?4:0,
+                borderTop:bd.length>10?"1px solid var(--line)":"none",borderBottom:bd.length>10?"1px solid var(--line)":"none"}}>
               {bd.map(({m,pred,pts,kind,doubled})=>{
                 const label = kind==="eksakt"?"Eksakt":kind==="utfall"?"Riktig utfall":kind==="ikke tippet"?"Ikke tippet":"Feil";
                 const col = kindColor(kind);
@@ -829,6 +841,7 @@ function Leaderboard({ rows, rules, total, isAdmin, deleteUser, editUser, prevRa
                 </div>
                 );
               })}
+              </div>
             </div>;
           })()}
           </div>
