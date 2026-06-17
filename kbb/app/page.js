@@ -201,7 +201,66 @@ export default function Home() {
     }).sort((a,b)=>b.pts-a.pts || b.exact-a.exact);
   }, [profiles, allPreds, allBonus, bonusAnswers, bonusRules, matches, rules, doubleStages]);
 
+  // ───────── Player Awards (kun lesing av eksisterende data) ─────────
+  const awards = useMemo(()=>{
+    if(!profiles.length) return null;
+    const byUser={}; allPreds.forEach(p=>{ (byUser[p.user_id] ||= {})[p.match_id]=p; });
+    // kamper med resultat, ikke TBA-sluttspill, i kampnummer-rekkefølge
+    const playedAsc=[...matches]
+      .filter(m=>m.result_home!=null && m.result_away!=null)
+      .filter(m=>!(isKnockout(m.stage) && !teamsSet(m)))
+      .sort((a,b)=>a.match_no-b.match_no);
+
+    const stats=profiles.map(u=>{
+      let wrong=0, exact=0, notTipped=0;
+      let curWrong=0,maxWrong=0;       // feil på rad
+      let curExact=0,maxExact=0;       // eksakte på rad
+      let curRight=0,maxRight=0;       // riktige (1 p+) på rad
+      playedAsc.forEach(m=>{
+        const p=byUser[u.id]?.[m.id];
+        const tipped = p && p.pred_home!=null && p.pred_away!=null;
+        if(!tipped){                    // IKKE TIPPET → bryter alle rekker
+          notTipped++; curWrong=0; curExact=0; curRight=0; return;
+        }
+        const sc=scorePrediction(p.pred_home, p.pred_away, m.result_home, m.result_away, rules);
+        if(sc===rules.exact_pts){ exact++; curExact++; maxExact=Math.max(maxExact,curExact); }
+        else { curExact=0; }
+        if(sc>0){ curRight++; maxRight=Math.max(maxRight,curRight); curWrong=0; }
+        else { wrong++; curWrong++; maxWrong=Math.max(maxWrong,curWrong); curRight=0; }
+      });
+      const lbRow = leaderboard.find(x=>x.id===u.id) || {};
+      return { id:u.id, name:u.name, nick:u.nick,
+        total:lbRow.pts||0, exact, wrong, notTipped, bonus:lbRow.bonus||0,
+        wrongStreak:maxWrong, exactStreak:maxExact, rightStreak:maxRight };
+    });
+
+    // vinner(e) for høyest verdi
+    function top(metric, min=1){
+      const best=Math.max(...stats.map(s=>s[metric]));
+      if(best<min) return null;
+      return { value:best, winners:stats.filter(s=>s[metric]===best) };
+    }
+    // vinner(e) for laveste verdi (krever at minst én kamp er spilt)
+    function bottom(metric){
+      if(!playedAsc.length) return null;
+      const worst=Math.min(...stats.map(s=>s[metric]));
+      return { value:worst, winners:stats.filter(s=>s[metric]===worst) };
+    }
+    return {
+      skarpskytter: top("exact"),
+      gullgraver:   top("exactStreak", 2),
+      perfeksjonist:top("rightStreak", 2),
+      bonusjeger:   top("bonus"),
+      skivebom:     top("wrong"),
+      orken:        top("wrongStreak", 2),
+      kontrollor:   bottom("wrong"),
+      katastrofor:  bottom("total"),
+      passasjer:    top("notTipped", 1),
+    };
+  }, [profiles, allPreds, matches, rules, leaderboard]);
+
   async function signOut(){ await supabase.auth.signOut(); }
+
 
   async function snapshotRanks(){
     // store current standings so movement arrows compare against pre-result order
@@ -256,6 +315,7 @@ export default function Home() {
           <button className={tab==="bonus"?"on":""} onClick={()=>setTab("bonus")}>Bonus</button>
           <button className={tab==="matches"?"on":""} onClick={()=>setTab("matches")}>Kamper</button>
           <button className={tab==="leaderboard"?"on":""} onClick={()=>setTab("leaderboard")}>Tabell</button>
+          <button className={tab==="awards"?"on":""} onClick={()=>setTab("awards")}>Awards</button>
           <button className={tab==="pott"?"on":""} onClick={()=>setTab("pott")}>Pott</button>
           <button className={tab==="regler"?"on":""} onClick={()=>setTab("regler")}>Regler</button>
           {isAdmin && <button className={tab==="admin"?"on":""} onClick={()=>setTab("admin")}>Admin</button>}
@@ -268,6 +328,7 @@ export default function Home() {
           saveBonus={saveBonus} locked={bonusLocked(null, isAdmin)} />}
         {tab==="matches" && <MatchList matches={matches} />}
         {tab==="leaderboard" && <Leaderboard rows={leaderboard} rules={rules} total={matches.length} isAdmin={isAdmin} deleteUser={deleteUser} editUser={editUser} prevRanks={prevRanks} matches={matches} allPreds={allPreds} doubleStages={doubleStages} />}
+        {tab==="awards" && <Awards awards={awards} />}
         {tab==="pott" && <PrizePool profiles={profiles} leaderboard={leaderboard} />}
         {tab==="regler" && <Rules rules={rules} bonusRules={bonusRules} />}
         {tab==="admin" && isAdmin && <Admin supabase={supabase} matches={matches} rules={rules} bonusRules={bonusRules}
@@ -695,6 +756,45 @@ function Rules({ rules, bonusRules }){
 }
 
 /* ───────── Prize pool ───────── */
+/* ───────── Player Awards (Spillerprestasjoner) ───────── */
+function Awards({ awards }){
+  const defs=[
+    {key:"skarpskytter", emoji:"🎯", title:"Skarpskytteren",  desc:"Flest eksakte",          unit:"eksakte"},
+    {key:"gullgraver",   emoji:"⛏️", title:"Gullgraveren",     desc:"Flest eksakte på rad",   unit:"på rad"},
+    {key:"perfeksjonist",emoji:"💎", title:"Perfeksjonisten",  desc:"Lengst uten feil (1 p+)",unit:"på rad"},
+    {key:"bonusjeger",   emoji:"🧠", title:"Bonusjegeren",     desc:"Flest bonuspoeng",       unit:"bonus-p"},
+    {key:"skivebom",     emoji:"🧱", title:"Skivebommern",     desc:"Flest feil",             unit:"feil"},
+    {key:"orken",        emoji:"🏜️", title:"Ørkenvandreren",   desc:"Flest feil på rad",      unit:"på rad"},
+    {key:"kontrollor",   emoji:"🛡️", title:"Kontrolløren",     desc:"Minst feil",             unit:"feil"},
+    {key:"katastrofor",  emoji:"💀", title:"Katastroføren",    desc:"Minst poeng totalt",     unit:"p"},
+    {key:"passasjer",    emoji:"🛋️", title:"Passasjeren",      desc:"Mest «ikke tippet»",     unit:"glemt"},
+  ];
+  const fullName=w=> w.name||"";
+  return <div className="card"><h2 className="sec">Spillerprestasjoner</h2>
+    <p className="note" style={{marginBottom:14}}>Kåringer basert på resultatene så langt — oppdateres automatisk. Ved likt stilling deles utmerkelsen.</p>
+    {!awards ? <div className="empty">Ingen data ennå.</div> :
+    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+      {defs.map(d=>{ const a=awards[d.key];
+        return <div key={d.key} style={{display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center",
+          gap:4,padding:"14px 8px",borderRadius:13,background:"var(--panel2)",border:"1px solid var(--line)",minWidth:0}}>
+          <div style={{fontSize:34,lineHeight:1}}>{d.emoji}</div>
+          <div style={{fontWeight:800,fontSize:13,lineHeight:1.15}}>{d.title}</div>
+          <div className="note" style={{fontSize:10.5,lineHeight:1.2}}>{d.desc}</div>
+          <div style={{marginTop:4,minWidth:0,width:"100%"}}>
+            {a && a.winners.length
+              ? <>
+                  <div style={{fontWeight:800,fontSize:12.5,wordBreak:"break-word"}}>{a.winners.map(w=>w.nick||w.name).join(", ")}</div>
+                  {a.winners.length===1 && a.winners[0].nick && <div className="note" style={{fontSize:10.5,wordBreak:"break-word"}}>{fullName(a.winners[0])}</div>}
+                  <div style={{fontSize:12,color:"var(--gold)",fontWeight:700,marginTop:2}}>{a.value} {d.unit}</div>
+                </>
+              : <div className="note" style={{fontSize:11}}>—</div>}
+          </div>
+        </div>;
+      })}
+    </div>}
+  </div>;
+}
+
 function PrizePool({ profiles, leaderboard }){
   const paid = profiles.filter(p=>p.paid || isAdminEmail(p.email));
   const pot = paid.length*200;
