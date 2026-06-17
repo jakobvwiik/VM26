@@ -240,7 +240,8 @@ export default function Home() {
         const sc=scorePrediction(p.pred_home, p.pred_away, m.result_home, m.result_away, rules);
         const mult=doubleStages[m.stage]?2:1;
         if(mult>1) doublePts+=sc*mult;                 // poeng kun fra doble runder
-        if(sc>0 && hittersPerMatch[m.id]===1) soloHits++; // eneste som traff
+        // Flakslodd: du traff, og du var ENESTE treffer — men andre må også ha tippet (ikke at du var alene)
+        if(sc>0 && tippersPerMatch[m.id]>=2 && hittersPerMatch[m.id]===1) soloHits++;
         // Lårskyting: du bommet (0 p), men alle ANDRE som tippet traff (minst 2 tippere totalt)
         if(sc===0 && tippersPerMatch[m.id]>=2 && hittersPerMatch[m.id]===tippersPerMatch[m.id]-1) soloMiss++;
         if(sc===rules.exact_pts){ exact++; curExact++; maxExact=Math.max(maxExact,curExact); }
