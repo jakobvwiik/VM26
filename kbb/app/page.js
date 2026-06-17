@@ -211,22 +211,23 @@ export default function Home() {
       .filter(m=>!(isKnockout(m.stage) && !teamsSet(m)))
       .sort((a,b)=>a.match_no-b.match_no);
 
-    // Hvor mange traff (1 p+) på hver kamp — for å finne "solo-treff" (Flaksloddet)
-    const hittersPerMatch={};
+    // Per kamp: hvor mange tippet, og hvor mange traff (1 p+) — for Flaksloddet og Lårskyteren
+    const tippersPerMatch={}, hittersPerMatch={};
     playedAsc.forEach(m=>{
-      let n=0;
+      let tip=0, hit=0;
       profiles.forEach(u=>{
         const p=byUser[u.id]?.[m.id];
         if(p && p.pred_home!=null && p.pred_away!=null){
+          tip++;
           const sc=scorePrediction(p.pred_home,p.pred_away,m.result_home,m.result_away,rules);
-          if(sc>0) n++;
+          if(sc>0) hit++;
         }
       });
-      hittersPerMatch[m.id]=n;
+      tippersPerMatch[m.id]=tip; hittersPerMatch[m.id]=hit;
     });
 
     const stats=profiles.map(u=>{
-      let wrong=0, exact=0, notTipped=0, doublePts=0, soloHits=0;
+      let wrong=0, exact=0, notTipped=0, doublePts=0, soloHits=0, soloMiss=0;
       let curWrong=0,maxWrong=0;       // feil på rad
       let curExact=0,maxExact=0;       // eksakte på rad
       let curRight=0,maxRight=0;       // riktige (1 p+) på rad
@@ -240,6 +241,8 @@ export default function Home() {
         const mult=doubleStages[m.stage]?2:1;
         if(mult>1) doublePts+=sc*mult;                 // poeng kun fra doble runder
         if(sc>0 && hittersPerMatch[m.id]===1) soloHits++; // eneste som traff
+        // Lårskyting: du bommet (0 p), men alle ANDRE som tippet traff (minst 2 tippere totalt)
+        if(sc===0 && tippersPerMatch[m.id]>=2 && hittersPerMatch[m.id]===tippersPerMatch[m.id]-1) soloMiss++;
         if(sc===rules.exact_pts){ exact++; curExact++; maxExact=Math.max(maxExact,curExact); }
         else { curExact=0; }
         if(sc>0){ curRight++; maxRight=Math.max(maxRight,curRight); curWrong=0; }
@@ -247,27 +250,30 @@ export default function Home() {
       });
       const lbRow = leaderboard.find(x=>x.id===u.id) || {};
       return { id:u.id, name:u.name, nick:u.nick,
-        total:lbRow.pts||0, exact, wrong, notTipped, bonus:lbRow.bonus||0, doublePts, soloHits,
+        total:lbRow.pts||0, predicted:lbRow.predicted||0,
+        exact, wrong, notTipped, bonus:lbRow.bonus||0, doublePts, soloHits, soloMiss,
         wrongStreak:maxWrong, exactStreak:maxExact, rightStreak:maxRight };
     });
 
-    // Topp 3 for en metrikk. Sorteres på metrikken, deretter totalsum som tiebreaker.
-    // min = laveste verdi som teller (ellers regnes award som "ikke avgjort").
-    function top3(metric, min=1){
+    // Én vinner for en metrikk. Tiebreaker: flest kamper spilt → høyest totalsum.
+    // min = laveste verdi som teller (ellers "ikke avgjort ennå").
+    function win(metric, min=1){
       const pool=stats.filter(s=>s[metric]>=min);
       if(!pool.length) return null;
-      const sorted=[...pool].sort((a,b)=> b[metric]-a[metric] || b.total-a.total);
-      return sorted.slice(0,3).map(s=>({ nick:s.nick, name:s.name, value:s[metric] }));
+      const sorted=[...pool].sort((a,b)=> b[metric]-a[metric] || b.predicted-a.predicted || b.total-a.total);
+      const w=sorted[0];
+      return { nick:w.nick, name:w.name, value:w[metric] };
     }
     return {
-      skarpskytter: top3("exact"),
-      gullgraver:   top3("exactStreak", 2),
-      perfeksjonist:top3("rightStreak", 2),
-      bonusjeger:   top3("bonus"),
-      dobbeltgjenger:top3("doublePts", 1),
-      flakslodd:    top3("soloHits", 1),
-      skivebom:     top3("wrong"),
-      orken:        top3("wrongStreak", 2),
+      skarpskytter: win("exact"),
+      gullgraver:   win("exactStreak", 2),
+      perfeksjonist:win("rightStreak", 2),
+      bonusjeger:   win("bonus"),
+      dobbeltgjenger:win("doublePts", 1),
+      flakslodd:    win("soloHits", 1),
+      larskyter:    win("soloMiss", 1),
+      skivebom:     win("wrong"),
+      orken:        win("wrongStreak", 2),
     };
   }, [profiles, allPreds, matches, rules, leaderboard, doubleStages]);
 
@@ -771,44 +777,67 @@ function Rules({ rules, bonusRules }){
 /* ───────── Player Awards (Spillerprestasjoner) ───────── */
 function Awards({ awards }){
   const defs=[
-    {key:"skarpskytter", emoji:"🎯", title:"Skarpskytteren",  desc:"Flest eksakte",          unit:"eksakte"},
-    {key:"gullgraver",   emoji:"⛏️", title:"Gullgraveren",     desc:"Flest eksakte på rad",   unit:"på rad"},
-    {key:"perfeksjonist",emoji:"💎", title:"Perfeksjonisten",  desc:"Lengst uten feil (1 p+)",unit:"på rad"},
-    {key:"bonusjeger",   emoji:"🧠", title:"Bonusjegeren",     desc:"Flest bonuspoeng",       unit:"bonus-p"},
-    {key:"dobbeltgjenger",emoji:"⚡", title:"Dobbeltgjengeren", desc:"Mest poeng i doble runder",unit:"p"},
-    {key:"flakslodd",    emoji:"🍀", title:"Flaksloddet",       desc:"Treff ingen andre tok",  unit:"treff"},
-    {key:"skivebom",     emoji:"🧱", title:"Skivebommern",     desc:"Flest feil",             unit:"feil"},
-    {key:"orken",        emoji:"🏜️", title:"Ørkenvandreren",   desc:"Flest feil på rad",      unit:"på rad"},
+    {key:"skarpskytter", emoji:"🎯", title:"Skarpskytteren",  desc:"Har truffet flest eksakte resultater",        unit:"eksakte", accent:"var(--teal)"},
+    {key:"gullgraver",   emoji:"⛏️", title:"Gullgraveren",     desc:"Flest eksakte resultater på rad",             unit:"på rad",  accent:"var(--gold)"},
+    {key:"perfeksjonist",emoji:"💎", title:"Perfeksjonisten",  desc:"Lengst rekke uten en eneste bom (1 p+)",      unit:"på rad",  accent:"var(--teal)"},
+    {key:"bonusjeger",   emoji:"🧠", title:"Bonusjegeren",     desc:"Har sanket flest poeng på bonusspørsmålene",  unit:"bonus-p", accent:"var(--violet)"},
+    {key:"dobbeltgjenger",emoji:"⚡", title:"Dobbeltgjengeren", desc:"Mest poeng hentet i doble runder",            unit:"poeng",   accent:"var(--lime)"},
+    {key:"flakslodd",    emoji:"🍀", title:"Flaksloddet",       desc:"Flest treff ingen andre klarte",              unit:"treff",   accent:"var(--lime)"},
+    {key:"larskyter",    emoji:"🦵", title:"Lårskyteren",        desc:"Bommet når alle andre traff",                 unit:"bom",     accent:"var(--magenta)"},
+    {key:"skivebom",     emoji:"🧱", title:"Skivebommern",     desc:"Har bommet flest ganger (0 poeng)",           unit:"bom",     accent:"var(--magenta)"},
+    {key:"orken",        emoji:"🏜️", title:"Ørkenvandreren",   desc:"Lengst rekke med bom på rad",                 unit:"på rad",  accent:"var(--magenta)"},
   ];
-  const medal=["🥇","🥈","🥉"];
   return <div className="card"><h2 className="sec">Spillerprestasjoner</h2>
-    <p className="note" style={{marginBottom:14}}>Topp 3 i hver kategori, oppdateres automatisk. Ved lik verdi rangeres det etter totalsum i tabellen.</p>
+    <p className="note" style={{marginBottom:16}}>Den som leder hver kategori akkurat nå. Oppdateres automatisk. Ved lik verdi vinner den med flest kamper spilt, deretter høyest på tabellen.</p>
     {!awards ? <div className="empty">Ingen data ennå.</div> :
-    <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10}}>
-      {defs.map(d=>{ const list=awards[d.key];
-        return <div key={d.key} style={{display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center",
-          gap:3,padding:"14px 10px",borderRadius:13,background:"var(--panel2)",border:"1px solid var(--line)",minWidth:0}}>
-          <div style={{fontSize:34,lineHeight:1}}>{d.emoji}</div>
-          <div style={{fontWeight:800,fontSize:14,lineHeight:1.15}}>{d.title}</div>
-          <div className="note" style={{fontSize:11,lineHeight:1.2,marginBottom:5}}>{d.desc}</div>
-          {list && list.length ?
-            <div style={{width:"100%",display:"flex",flexDirection:"column",gap:5}}>
-              {list.map((w,idx)=>(
-                <div key={idx} style={{display:"flex",alignItems:"center",gap:6,textAlign:"left",minWidth:0}}>
-                  <span style={{fontSize:15,flexShrink:0}}>{medal[idx]}</span>
-                  <span style={{minWidth:0,flex:1}}>
-                    <span style={{fontWeight:800,fontSize:12.5,wordBreak:"break-word"}}>{w.nick||w.name}</span>
-                    {w.nick && <span className="note" style={{fontSize:10.5}}> · {w.name}</span>}
-                  </span>
-                  <span style={{fontSize:11.5,color:"var(--gold)",fontWeight:700,flexShrink:0,whiteSpace:"nowrap"}}>{w.value}</span>
-                </div>
-              ))}
-            </div>
-            : <div className="note" style={{fontSize:11}}>— ikke avgjort ennå</div>}
-        </div>;
-      })}
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      {defs.map(d=>{ const w=awards[d.key]; return <AwardCard key={d.key} def={d} w={w}/>; })}
     </div>}
   </div>;
+}
+
+function AwardCard({ def:d, w }){
+  return (
+    <div style={{position:"relative",borderRadius:18,padding:"22px 18px 20px",textAlign:"center",overflow:"hidden",
+      background:"radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, "+d.accent+" 10%, var(--panel2)) 0%, var(--panel2) 70%)",
+      border:"1px solid var(--line)"}}>
+      {/* Leder nå-merkelapp */}
+      {w && <div style={{position:"absolute",top:12,right:12,display:"flex",alignItems:"center",gap:5,
+        fontSize:10.5,fontWeight:800,letterSpacing:".04em",textTransform:"uppercase",color:d.accent,
+        background:"color-mix(in srgb, "+d.accent+" 14%, transparent)",border:"1px solid "+d.accent,
+        borderRadius:999,padding:"3px 9px"}}>
+        <span style={{width:6,height:6,borderRadius:999,background:d.accent,display:"inline-block"}}></span>Leder nå
+      </div>}
+
+      {/* Ikon i glødende sirkel */}
+      <div style={{width:64,height:64,margin:"4px auto 12px",borderRadius:999,display:"flex",alignItems:"center",justifyContent:"center",
+        fontSize:32,background:"var(--panel)",border:"2px solid "+d.accent,
+        boxShadow:"0 0 22px color-mix(in srgb, "+d.accent+" 45%, transparent)"}}>{d.emoji}</div>
+
+      {/* Tittel med streker på sidene */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginBottom:10}}>
+        <span style={{height:1,width:28,background:"var(--line)"}}></span>
+        <span style={{fontSize:12,fontWeight:800,letterSpacing:".14em",textTransform:"uppercase",color:"var(--mut)"}}>{d.title}</span>
+        <span style={{height:1,width:28,background:"var(--line)"}}></span>
+      </div>
+
+      {w ? <>
+        {/* Navn */}
+        <div style={{fontSize:"clamp(22px,6vw,30px)",fontWeight:800,lineHeight:1.1,wordBreak:"break-word"}}>{w.nick||w.name}</div>
+        {w.nick && w.name && <div className="note" style={{fontSize:13,marginTop:2}}>{w.name}</div>}
+        {/* Beskrivelse */}
+        <div className="note" style={{fontSize:13,margin:"10px auto 14px",maxWidth:300,lineHeight:1.4}}>{d.desc}</div>
+        {/* Verdi-pille */}
+        <div style={{display:"inline-block",borderRadius:999,padding:"7px 18px",fontWeight:800,fontSize:13,letterSpacing:".03em",
+          color:d.accent,border:"1px solid "+d.accent,background:"color-mix(in srgb, "+d.accent+" 12%, transparent)"}}>
+          {w.value} {d.unit.toUpperCase()}
+        </div>
+      </> : <>
+        <div className="note" style={{fontSize:13,margin:"6px auto 4px",maxWidth:300,lineHeight:1.4}}>{d.desc}</div>
+        <div className="note" style={{fontSize:13,marginTop:8,fontStyle:"italic"}}>Ikke avgjort ennå</div>
+      </>}
+    </div>
+  );
 }
 
 function PrizePool({ profiles, leaderboard }){
