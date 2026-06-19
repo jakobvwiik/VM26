@@ -256,14 +256,13 @@ export default function Home() {
         wrongStreak:maxWrong, exactStreak:maxExact, rightStreak:maxRight };
     });
 
-    // Én vinner for en metrikk. Tiebreaker: flest kamper spilt → høyest totalsum.
+    // Topp 3 for en metrikk. Tiebreaker: flest kamper spilt → høyest totalsum.
     // min = laveste verdi som teller (ellers "ikke avgjort ennå").
     function win(metric, min=1){
       const pool=stats.filter(s=>s[metric]>=min);
       if(!pool.length) return null;
       const sorted=[...pool].sort((a,b)=> b[metric]-a[metric] || b.predicted-a.predicted || b.total-a.total);
-      const w=sorted[0];
-      return { nick:w.nick, name:w.name, value:w[metric] };
+      return sorted.slice(0,3).map(s=>({ nick:s.nick, name:s.name, value:s[metric] }));
     }
     return {
       skarpskytter: win("exact"),
@@ -614,13 +613,15 @@ function Bonus({ matches, bonus, answers, rules, saveBonus, locked }){
         {YN_QUESTIONS.map((q,i)=>{
           const v=yn[i], corr=ans.yn&&ans.yn[i];
           const status = corr ? (v && v===corr ? "green" : "red") : null;
-          // Når fasit finnes: marker spillerens valgte knapp grønn (rett) eller rød (feil)
+          // Når fasit finnes: valgt knapp får farge etter resultat — turkis (rett) eller rød (feil)
           function ynBtnResult(side){
             const chosen = v===side;
             const base = ynBtn(chosen);
             if(corr && chosen){
-              const c = v===corr ? "var(--teal)" : "var(--magenta)";
-              return {...base, border:`2px solid ${c}`, boxShadow:`0 0 0 1px ${c}`};
+              if(v===corr) return base;   // riktig → behold turkis "valgt"-fyll
+              // feil → rød bakgrunn, hvit tekst (ikke turkis, som ville signalisert "riktig")
+              return {...base, background:"var(--magenta)", color:"#fff",
+                border:"1px solid var(--magenta)", boxShadow:"0 0 0 1px var(--magenta)"};
             }
             // Låst, men fasit ikke satt ennå → tone ned valgt knapp så det er tydelig at det er levert/venter
             if(locked && !corr && chosen){
@@ -632,7 +633,12 @@ function Bonus({ matches, bonus, answers, rules, saveBonus, locked }){
           return <div key={i} style={{display:"flex",gap:12,alignItems:"center",justifyContent:"space-between",...rowStyle(status)}}>
             <div style={{flex:1,fontSize:14}}>
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>{q} {pill(status,rules.yn)}
-                {locked && !corr && v && <span style={{fontSize:11,color:"var(--mut)",fontStyle:"italic"}}>· venter på fasit</span>}
+                {locked && !corr && <span style={{fontSize:11,color:"var(--mut)",fontStyle:"italic"}}>· venter på fasit</span>}
+              </div>
+              <div style={{marginTop:5,fontSize:12.5}}>
+                {v
+                  ? <>Ditt svar: <strong style={{color: corr ? (v===corr?"var(--teal)":"var(--magenta)") : "var(--ink)"}}>{v==="ja"?"Ja":"Nei"}</strong></>
+                  : <span className="note" style={{fontStyle:"italic"}}>{locked?"Du svarte ikke":"Ikke besvart ennå"}</span>}
               </div>
               {corr && ans.yn_notes && ans.yn_notes[i] && <div className="note" style={{marginTop:5,fontStyle:"italic"}}>Fasit: {ans.yn_notes[i]}</div>}
             </div>
@@ -797,7 +803,9 @@ function Awards({ awards }){
   </div>;
 }
 
-function AwardCard({ def:d, w }){
+function AwardCard({ def:d, w:list }){
+  const w = list && list.length ? list[0] : null;
+  const rest = list && list.length>1 ? list.slice(1) : [];
   return (
     <div style={{position:"relative",borderRadius:18,padding:"22px 18px 20px",textAlign:"center",overflow:"hidden",
       background:"radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, "+d.accent+" 10%, var(--panel2)) 0%, var(--panel2) 70%)",
@@ -823,7 +831,7 @@ function AwardCard({ def:d, w }){
       </div>
 
       {w ? <>
-        {/* Navn */}
+        {/* Lederens navn — dette skal poppe */}
         <div style={{fontSize:"clamp(22px,6vw,30px)",fontWeight:800,lineHeight:1.1,wordBreak:"break-word"}}>{w.nick||w.name}</div>
         {w.nick && w.name && <div className="note" style={{fontSize:13,marginTop:2}}>{w.name}</div>}
         {/* Beskrivelse */}
@@ -833,6 +841,18 @@ function AwardCard({ def:d, w }){
           color:d.accent,border:"1px solid "+d.accent,background:"color-mix(in srgb, "+d.accent+" 12%, transparent)"}}>
           {w.value} {d.unit.toUpperCase()}
         </div>
+        {/* Nr. 2 og 3 — små */}
+        {rest.length>0 && <div style={{marginTop:14,paddingTop:12,borderTop:"1px solid var(--line)",
+          display:"flex",flexDirection:"column",gap:4,maxWidth:280,marginLeft:"auto",marginRight:"auto"}}>
+          {rest.map((p,idx)=>(
+            <div key={idx} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:11.5,color:"var(--mut)"}}>
+              <span style={{opacity:.7}}>{idx+2}.</span>
+              <span style={{fontWeight:700,color:"var(--ink)"}}>{p.nick||p.name}</span>
+              {p.nick && p.name && <span style={{opacity:.8}}>· {p.name}</span>}
+              <span style={{color:d.accent,fontWeight:700}}>· {p.value}</span>
+            </div>
+          ))}
+        </div>}
       </> : <>
         <div className="note" style={{fontSize:13,margin:"6px auto 4px",maxWidth:300,lineHeight:1.4}}>{d.desc}</div>
         <div className="note" style={{fontSize:13,marginTop:8,fontStyle:"italic"}}>Ikke avgjort ennå</div>
