@@ -250,9 +250,18 @@ export default function Home() {
         else { wrong++; curWrong++; maxWrong=Math.max(maxWrong,curWrong); curRight=0; }
       });
       const lbRow = leaderboard.find(x=>x.id===u.id) || {};
+      // Tippe-atferd over ALLE tips (ikke bare ferdigspilte): uavgjort-tips og totalt tippede mål
+      let drawTips=0, goalsTipped=0, tipCount=0;
+      Object.values(byUser[u.id]||{}).forEach(p=>{
+        if(p.pred_home==null || p.pred_away==null) return;
+        tipCount++;
+        if(p.pred_home===p.pred_away) drawTips++;
+        goalsTipped += p.pred_home + p.pred_away;
+      });
       return { id:u.id, name:u.name, nick:u.nick,
         total:lbRow.pts||0, predicted:lbRow.predicted||0,
         exact, wrong, notTipped, bonus:lbRow.bonus||0, doublePts, soloHits, soloMiss,
+        drawTips, goalsTipped, tipCount,
         wrongStreak:maxWrong, exactStreak:maxExact, rightStreak:maxRight };
     });
 
@@ -264,6 +273,13 @@ export default function Home() {
       const sorted=[...pool].sort((a,b)=> b[metric]-a[metric] || b.predicted-a.predicted || b.total-a.total);
       return sorted.slice(0,5).map(s=>({ nick:s.nick, name:s.name, value:s[metric] }));
     }
+    // Topp 5 for LAVESTE verdi (kun blant de som har tippet noe). Tiebreaker: flest kamper, så høyest totalsum.
+    function low(metric){
+      const pool=stats.filter(s=>s.tipCount>0);
+      if(!pool.length) return null;
+      const sorted=[...pool].sort((a,b)=> a[metric]-b[metric] || b.predicted-a.predicted || b.total-a.total);
+      return sorted.slice(0,5).map(s=>({ nick:s.nick, name:s.name, value:s[metric] }));
+    }
     return {
       skarpskytter: win("exact"),
       gullgraver:   win("exactStreak", 2),
@@ -271,6 +287,9 @@ export default function Home() {
       bonusjeger:   win("bonus"),
       dobbeltgjenger:win("doublePts", 1),
       flakslodd:    win("soloHits", 1),
+      pessimist:    win("drawTips", 1),
+      malgalopp:    win("goalsTipped", 1),
+      gjerrigknark: low("goalsTipped"),
       larskyter:    win("soloMiss", 1),
       skivebom:     win("wrong"),
       orken:        win("wrongStreak", 2),
@@ -783,16 +802,23 @@ function Rules({ rules, bonusRules }){
 /* ───────── Prize pool ───────── */
 /* ───────── Player Awards (Spillerprestasjoner) ───────── */
 function Awards({ awards }){
+  const GREEN="var(--teal)", GUL="var(--gold)", RED="var(--magenta)";
   const defs=[
-    {key:"skarpskytter", emoji:"🎯", title:"Skarpskytteren",  desc:"Har truffet flest eksakte resultater",        unit:"eksakte", accent:"var(--teal)"},
-    {key:"gullgraver",   emoji:"⛏️", title:"Gullgraveren",     desc:"Flest eksakte resultater på rad",             unit:"på rad",  accent:"var(--gold)"},
-    {key:"perfeksjonist",emoji:"💎", title:"Perfeksjonisten",  desc:"Lengst rekke uten en eneste bom (1 p+)",      unit:"på rad",  accent:"var(--teal)"},
-    {key:"bonusjeger",   emoji:"🧠", title:"Bonusjegeren",     desc:"Har sanket flest poeng på bonusspørsmålene",  unit:"bonus-p", accent:"var(--violet)"},
-    {key:"dobbeltgjenger",emoji:"⚡", title:"Dobbeltgjengeren", desc:"Mest poeng hentet i doble runder",            unit:"poeng",   accent:"var(--lime)"},
-    {key:"flakslodd",    emoji:"🍀", title:"Flaksloddet",       desc:"Flest treff ingen andre klarte",              unit:"treff",   accent:"var(--lime)"},
-    {key:"larskyter",    emoji:"🦵", title:"Lårskyteren",        desc:"Bommet når alle andre traff",                 unit:"bom",     accent:"var(--magenta)"},
-    {key:"skivebom",     emoji:"🧱", title:"Skivebommern",     desc:"Har bommet flest ganger (0 poeng)",           unit:"bom",     accent:"var(--magenta)"},
-    {key:"orken",        emoji:"🏜️", title:"Ørkenvandreren",   desc:"Lengst rekke med bom på rad",                 unit:"på rad",  accent:"var(--magenta)"},
+    // ── Positive (grønn) ──
+    {key:"skarpskytter", emoji:"🎯", title:"Skarpskytteren",  desc:"Har truffet flest eksakte resultater",        unit:"eksakte", accent:GREEN},
+    {key:"gullgraver",   emoji:"⛏️", title:"Gullgraveren",     desc:"Flest eksakte resultater på rad",             unit:"på rad",  accent:GREEN},
+    {key:"perfeksjonist",emoji:"💎", title:"Perfeksjonisten",  desc:"Lengst rekke uten en eneste bom (1 p+)",      unit:"på rad",  accent:GREEN},
+    {key:"bonusjeger",   emoji:"🧠", title:"Bonusjegeren",     desc:"Har sanket flest poeng på bonusspørsmålene",  unit:"bonus-p", accent:GREEN},
+    {key:"dobbeltgjenger",emoji:"⚡", title:"Dobbeltgjengeren", desc:"Mest poeng hentet i doble runder",            unit:"poeng",   accent:GREEN},
+    {key:"flakslodd",    emoji:"🍀", title:"Flaksloddet",       desc:"Flest treff ingen andre klarte",              unit:"treff",   accent:GREEN},
+    // ── Nøytral tippestil (gul) ──
+    {key:"pessimist",    emoji:"🤝", title:"Pessimisten",       desc:"Tippet flest uavgjort",                       unit:"uavgjort",accent:GUL},
+    {key:"malgalopp",    emoji:"⚽", title:"Målgaloppen",        desc:"Tippet flest mål totalt",                     unit:"mål",     accent:GUL},
+    // ── Negative (rød) ──
+    {key:"gjerrigknark", emoji:"🔒", title:"Gjerrigknarken",    desc:"Tippet færrest mål totalt",                   unit:"mål",     accent:RED},
+    {key:"larskyter",    emoji:"🦵", title:"Lårskyteren",        desc:"Bommet når alle andre traff",                 unit:"bom",     accent:RED},
+    {key:"skivebom",     emoji:"🧱", title:"Skivebommern",     desc:"Har bommet flest ganger (0 poeng)",           unit:"bom",     accent:RED},
+    {key:"orken",        emoji:"🏜️", title:"Ørkenvandreren",   desc:"Lengst rekke med bom på rad",                 unit:"på rad",  accent:RED},
   ];
   return <div className="card"><h2 className="sec">Spillerprestasjoner</h2>
     <p className="note" style={{marginBottom:16}}>Topp 10 i hver kategori — lederen øverst. Oppdateres automatisk. Ved lik verdi teller flest kamper spilt, deretter høyest på tabellen.</p>

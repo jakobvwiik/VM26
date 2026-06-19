@@ -103,6 +103,5 @@ h3.sub2::after{content:"";flex:1;height:1px;background:var(--line)}
 .spin{color:var(--mut);padding:60px;text-align:center}
 .center{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:18px}
 input[type=checkbox]{width:auto;accent-color:var(--teal)}
-.awardgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.awardgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 @media(max-width:560px){.awardgrid{gap:6px}}
-@media(max-width:380px){.awardgrid{grid-template-columns:repeat(2,1fr)}}
