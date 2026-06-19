@@ -262,7 +262,7 @@ export default function Home() {
       const pool=stats.filter(s=>s[metric]>=min);
       if(!pool.length) return null;
       const sorted=[...pool].sort((a,b)=> b[metric]-a[metric] || b.predicted-a.predicted || b.total-a.total);
-      return sorted.slice(0,3).map(s=>({ nick:s.nick, name:s.name, value:s[metric] }));
+      return sorted.slice(0,5).map(s=>({ nick:s.nick, name:s.name, value:s[metric] }));
     }
     return {
       skarpskytter: win("exact"),
@@ -795,9 +795,9 @@ function Awards({ awards }){
     {key:"orken",        emoji:"🏜️", title:"Ørkenvandreren",   desc:"Lengst rekke med bom på rad",                 unit:"på rad",  accent:"var(--magenta)"},
   ];
   return <div className="card"><h2 className="sec">Spillerprestasjoner</h2>
-    <p className="note" style={{marginBottom:16}}>Den som leder hver kategori akkurat nå. Oppdateres automatisk. Ved lik verdi vinner den med flest kamper spilt, deretter høyest på tabellen.</p>
+    <p className="note" style={{marginBottom:16}}>Topp 10 i hver kategori — lederen øverst. Oppdateres automatisk. Ved lik verdi teller flest kamper spilt, deretter høyest på tabellen.</p>
     {!awards ? <div className="empty">Ingen data ennå.</div> :
-    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+    <div className="awardgrid">
       {defs.map(d=>{ const w=awards[d.key]; return <AwardCard key={d.key} def={d} w={w}/>; })}
     </div>}
   </div>;
@@ -807,56 +807,37 @@ function AwardCard({ def:d, w:list }){
   const w = list && list.length ? list[0] : null;
   const rest = list && list.length>1 ? list.slice(1) : [];
   return (
-    <div style={{position:"relative",borderRadius:18,padding:"22px 18px 20px",textAlign:"center",overflow:"hidden",
-      background:"radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, "+d.accent+" 10%, var(--panel2)) 0%, var(--panel2) 70%)",
-      border:"1px solid var(--line)"}}>
-      {/* Leder nå-merkelapp */}
-      {w && <div style={{position:"absolute",top:12,right:12,display:"flex",alignItems:"center",gap:5,
-        fontSize:10.5,fontWeight:800,letterSpacing:".04em",textTransform:"uppercase",color:d.accent,
-        background:"color-mix(in srgb, "+d.accent+" 14%, transparent)",border:"1px solid "+d.accent,
-        borderRadius:999,padding:"3px 9px"}}>
-        <span style={{width:6,height:6,borderRadius:999,background:d.accent,display:"inline-block"}}></span>Leder nå
-      </div>}
-
+    <div style={{position:"relative",borderRadius:16,padding:"16px 12px 14px",textAlign:"center",overflow:"hidden",
+      background:"radial-gradient(120% 70% at 50% 0%, color-mix(in srgb, "+d.accent+" 12%, var(--panel2)) 0%, var(--panel2) 72%)",
+      border:"1px solid "+(w?"color-mix(in srgb, "+d.accent+" 35%, var(--line))":"var(--line)"),minWidth:0}}>
       {/* Ikon i glødende sirkel */}
-      <div style={{width:64,height:64,margin:"4px auto 12px",borderRadius:999,display:"flex",alignItems:"center",justifyContent:"center",
-        fontSize:32,background:"var(--panel)",border:"2px solid "+d.accent,
-        boxShadow:"0 0 22px color-mix(in srgb, "+d.accent+" 45%, transparent)"}}>{d.emoji}</div>
+      <div style={{width:48,height:48,margin:"0 auto 9px",borderRadius:999,display:"flex",alignItems:"center",justifyContent:"center",
+        fontSize:24,background:"var(--panel)",border:"2px solid "+d.accent,
+        boxShadow:"0 0 16px color-mix(in srgb, "+d.accent+" 45%, transparent)"}}>{d.emoji}</div>
 
-      {/* Tittel med streker på sidene */}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginBottom:10}}>
-        <span style={{height:1,width:28,background:"var(--line)"}}></span>
-        <span style={{fontSize:12,fontWeight:800,letterSpacing:".14em",textTransform:"uppercase",color:"var(--mut)"}}>{d.title}</span>
-        <span style={{height:1,width:28,background:"var(--line)"}}></span>
-      </div>
+      {/* Tittel */}
+      <div style={{fontSize:11,fontWeight:800,letterSpacing:".08em",textTransform:"uppercase",color:d.accent,lineHeight:1.2}}>{d.title}</div>
+      <div className="note" style={{fontSize:9.5,lineHeight:1.25,margin:"3px auto 10px",maxWidth:150}}>{d.desc}</div>
 
       {w ? <>
-        {/* Lederens navn — dette skal poppe */}
-        <div style={{fontSize:"clamp(22px,6vw,30px)",fontWeight:800,lineHeight:1.1,wordBreak:"break-word"}}>{w.nick||w.name}</div>
-        {w.nick && w.name && <div className="note" style={{fontSize:13,marginTop:2}}>{w.name}</div>}
-        {/* Beskrivelse */}
-        <div className="note" style={{fontSize:13,margin:"10px auto 14px",maxWidth:300,lineHeight:1.4}}>{d.desc}</div>
-        {/* Verdi-pille */}
-        <div style={{display:"inline-block",borderRadius:999,padding:"7px 18px",fontWeight:800,fontSize:13,letterSpacing:".03em",
+        {/* Leder */}
+        <div style={{fontSize:"clamp(15px,4.4vw,19px)",fontWeight:800,lineHeight:1.1,wordBreak:"break-word"}}>{w.nick||w.name}</div>
+        <div style={{display:"inline-block",marginTop:6,borderRadius:999,padding:"3px 12px",fontWeight:800,fontSize:11,
           color:d.accent,border:"1px solid "+d.accent,background:"color-mix(in srgb, "+d.accent+" 12%, transparent)"}}>
           {w.value} {d.unit.toUpperCase()}
         </div>
-        {/* Nr. 2 og 3 — små */}
-        {rest.length>0 && <div style={{marginTop:14,paddingTop:12,borderTop:"1px solid var(--line)",
-          display:"flex",flexDirection:"column",gap:4,maxWidth:280,marginLeft:"auto",marginRight:"auto"}}>
+        {/* Nr. 2–10 */}
+        {rest.length>0 && <div style={{marginTop:10,paddingTop:9,borderTop:"1px solid var(--line)",
+          display:"flex",flexDirection:"column",gap:3,textAlign:"left"}}>
           {rest.map((p,idx)=>(
-            <div key={idx} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:11.5,color:"var(--mut)"}}>
-              <span style={{opacity:.7}}>{idx+2}.</span>
-              <span style={{fontWeight:700,color:"var(--ink)"}}>{p.nick||p.name}</span>
-              {p.nick && p.name && <span style={{opacity:.8}}>· {p.name}</span>}
-              <span style={{color:d.accent,fontWeight:700}}>· {p.value}</span>
+            <div key={idx} style={{display:"flex",alignItems:"center",gap:5,fontSize:10.5,color:"var(--mut)",minWidth:0}}>
+              <span style={{opacity:.6,flexShrink:0,width:14,textAlign:"right"}}>{idx+2}.</span>
+              <span style={{fontWeight:700,color:"var(--ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,minWidth:0}}>{p.nick||p.name}</span>
+              <span style={{color:d.accent,fontWeight:700,flexShrink:0}}>{p.value}</span>
             </div>
           ))}
         </div>}
-      </> : <>
-        <div className="note" style={{fontSize:13,margin:"6px auto 4px",maxWidth:300,lineHeight:1.4}}>{d.desc}</div>
-        <div className="note" style={{fontSize:13,marginTop:8,fontStyle:"italic"}}>Ikke avgjort ennå</div>
-      </>}
+      </> : <div className="note" style={{fontSize:11,marginTop:4,fontStyle:"italic"}}>Ikke avgjort ennå</div>}
     </div>
   );
 }
