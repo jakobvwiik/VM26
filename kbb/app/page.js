@@ -226,6 +226,11 @@ export default function Home() {
       tippersPerMatch[m.id]=tip; hittersPerMatch[m.id]=hit;
     });
 
+    // Låste kamper (avspark passert eller manuelt låst) — for tippe-atferd-priser, så fremtidige tips ikke teller
+    const lockedMatches=[...matches]
+      .filter(m=>!(isKnockout(m.stage) && !teamsSet(m)))
+      .filter(m=>matchLocked(m, null, false));
+
     const stats=profiles.map(u=>{
       let wrong=0, exact=0, notTipped=0, doublePts=0, soloHits=0, soloMiss=0;
       let curWrong=0,maxWrong=0;       // feil på rad
@@ -250,10 +255,11 @@ export default function Home() {
         else { wrong++; curWrong++; maxWrong=Math.max(maxWrong,curWrong); curRight=0; }
       });
       const lbRow = leaderboard.find(x=>x.id===u.id) || {};
-      // Tippe-atferd over ALLE tips (ikke bare ferdigspilte): uavgjort-tips og totalt tippede mål
+      // Tippe-atferd KUN over låste kamper (ikke fremtidige) — unngår å røpe kommende tips
       let drawTips=0, goalsTipped=0, tipCount=0;
-      Object.values(byUser[u.id]||{}).forEach(p=>{
-        if(p.pred_home==null || p.pred_away==null) return;
+      lockedMatches.forEach(m=>{
+        const p=byUser[u.id]?.[m.id];
+        if(!p || p.pred_home==null || p.pred_away==null) return;
         tipCount++;
         if(p.pred_home===p.pred_away) drawTips++;
         goalsTipped += p.pred_home + p.pred_away;
@@ -273,11 +279,21 @@ export default function Home() {
       const sorted=[...pool].sort((a,b)=> b[metric]-a[metric] || b.predicted-a.predicted || b.total-a.total);
       return sorted.slice(0,5).map(s=>({ nick:s.nick, name:s.name, value:s[metric] }));
     }
-    // Topp 5 for LAVESTE verdi (kun blant de som har tippet noe). Tiebreaker: flest kamper, så høyest totalsum.
-    function low(metric){
-      const pool=stats.filter(s=>s.tipCount>0);
+    // Topp 5 for LAVESTE verdi. needFull = krever at spiller har tippet (nesten) alle låste kamper,
+    // så "færrest mål" gjenspeiler tippestil, ikke at man har tippet få kamper.
+    function low(metric, needFull){
+      const minTips = needFull ? Math.ceil(lockedMatches.length*0.8) : 1;
+      const pool=stats.filter(s=>s.tipCount>=minTips && s.tipCount>0);
       if(!pool.length) return null;
       const sorted=[...pool].sort((a,b)=> a[metric]-b[metric] || b.predicted-a.predicted || b.total-a.total);
+      return sorted.slice(0,5).map(s=>({ nick:s.nick, name:s.name, value:s[metric] }));
+    }
+    // For "flest mål" gjelder samme rettferdighet: krev mange tips, ellers vinner bare den som tippet mest.
+    function highFair(metric){
+      const minTips = Math.ceil(lockedMatches.length*0.8);
+      const pool=stats.filter(s=>s.tipCount>=minTips);
+      if(!pool.length) return null;
+      const sorted=[...pool].sort((a,b)=> b[metric]-a[metric] || b.predicted-a.predicted || b.total-a.total);
       return sorted.slice(0,5).map(s=>({ nick:s.nick, name:s.name, value:s[metric] }));
     }
     return {
@@ -288,8 +304,8 @@ export default function Home() {
       dobbeltgjenger:win("doublePts", 1),
       flakslodd:    win("soloHits", 1),
       pessimist:    win("drawTips", 1),
-      malgalopp:    win("goalsTipped", 1),
-      gjerrigknark: low("goalsTipped"),
+      malgalopp:    highFair("goalsTipped"),
+      gjerrigknark: low("goalsTipped", true),
       larskyter:    win("soloMiss", 1),
       skivebom:     win("wrong"),
       orken:        win("wrongStreak", 2),
