@@ -369,7 +369,8 @@ export default function Home() {
           <button className={tab==="matches"?"on":""} onClick={()=>setTab("matches")}>Kamper</button>
           <button className={tab==="leaderboard"?"on":""} onClick={()=>setTab("leaderboard")}>Tabell</button>
           <button className={tab==="awards"?"on":""} onClick={()=>setTab("awards")}>Prestasjoner</button>
-          <button className={tab==="minstat"?"on":""} onClick={()=>setTab("minstat")}>Min statistikk</button>
+          <button className={tab==="minstat"?"on":""} onClick={()=>setTab("minstat")}>Spillerkort</button>
+          <button className={tab==="visste"?"on":""} onClick={()=>setTab("visste")}>Funfacts</button>
           <button className={tab==="pott"?"on":""} onClick={()=>setTab("pott")}>Pott</button>
           <button className={tab==="regler"?"on":""} onClick={()=>setTab("regler")}>Regler</button>
           {isAdmin && <button className={tab==="admin"?"on":""} onClick={()=>setTab("admin")}>Admin</button>}
@@ -384,6 +385,7 @@ export default function Home() {
         {tab==="leaderboard" && <Leaderboard rows={leaderboard} rules={rules} total={matches.length} isAdmin={isAdmin} deleteUser={deleteUser} editUser={editUser} prevRanks={prevRanks} matches={matches} allPreds={allPreds} doubleStages={doubleStages} />}
         {tab==="awards" && <Awards awards={awards} />}
         {tab==="minstat" && <MyStats me={me} leaderboard={leaderboard} matches={matches} allPreds={allPreds} rules={rules} doubleStages={doubleStages} />}
+        {tab==="visste" && <DidYouKnow leaderboard={leaderboard} matches={matches} allPreds={allPreds} rules={rules} bonusAnswers={bonusAnswers} allBonus={allBonus} doubleStages={doubleStages} />}
         {tab==="pott" && <PrizePool profiles={profiles} leaderboard={leaderboard} />}
         {tab==="regler" && <Rules rules={rules} bonusRules={bonusRules} />}
         {tab==="admin" && isAdmin && <Admin supabase={supabase} matches={matches} rules={rules} bonusRules={bonusRules}
@@ -839,7 +841,7 @@ function Awards({ awards }){
     {key:"orken",        emoji:"🏜️", title:"Ørkenvandreren",   desc:"Lengst rekke med bom på rad",                 unit:"på rad",  accent:RED},
   ];
   return <div className="card"><h2 className="sec">Spillerprestasjoner</h2>
-    <p className="note" style={{marginBottom:16}}>Topp 10 i hver kategori — lederen øverst. Oppdateres automatisk. Ved lik verdi teller flest kamper spilt, deretter høyest på tabellen.</p>
+    <p className="note" style={{marginBottom:16}}>Topp 5 i hver kategori — lederen øverst. Oppdateres automatisk. Ved lik verdi teller flest kamper spilt, deretter høyest på tabellen.</p>
     {!awards ? <div className="empty">Ingen data ennå.</div> :
     <div className="awardgrid">
       {defs.map(d=>{ const w=awards[d.key]; return <AwardCard key={d.key} def={d} w={w}/>; })}
@@ -892,7 +894,7 @@ function MyStats({ me, leaderboard, matches, allPreds, rules, doubleStages }){
   const myId=me?.id;
   const rank = leaderboard.findIndex(r=>r.id===myId);
   const meRow = rank>=0 ? leaderboard[rank] : null;
-  if(!meRow) return <div className="card"><h2 className="sec">Min statistikk</h2><div className="empty">Fant ingen statistikk for kontoen din ennå. Legg inn noen tips først!</div></div>;
+  if(!meRow) return <div className="card"><h2 className="sec">Spillerkort</h2><div className="empty">Fant ingen statistikk for kontoen din ennå. Legg inn noen tips først!</div></div>;
 
   // Per-kamp gjennomgang (kun ferdigspilte), nyeste først
   const mine={}; allPreds.filter(p=>p.user_id===myId).forEach(p=>{ mine[p.match_id]=p; });
@@ -918,7 +920,7 @@ function MyStats({ me, leaderboard, matches, allPreds, rules, doubleStages }){
     </div>
   );
 
-  return <div className="card"><h2 className="sec">Min statistikk</h2>
+  return <div className="card"><h2 className="sec">Spillerkort</h2>
     <p className="note" style={{marginBottom:14}}>Din egen oppsummering, basert på ferdigspilte kamper. Oppdateres automatisk.</p>
     <div style={{textAlign:"center",marginBottom:16}}>
       <div style={{fontSize:"clamp(24px,7vw,34px)",fontWeight:800}}>{meRow.nick||meRow.name}</div>
@@ -944,6 +946,161 @@ function MyStats({ me, leaderboard, matches, allPreds, rules, doubleStages }){
       <Stat label="Treff­prosent" value={treffPct+"%"}/>
       <Stat label="Tippet" value={tippet+"/"+played.length}/>
     </div>
+  </div>;
+}
+
+/* ───────── Visste du? (morsom statistikk) ───────── */
+function DidYouKnow({ leaderboard, matches, allPreds, rules, bonusAnswers, allBonus, doubleStages }){
+  const ds=doubleStages||{};
+  const facts=[];
+
+  const played=matches.filter(m=>m.result_home!=null && m.result_away!=null && !(isKnockout(m.stage)&&!teamsSet(m)));
+  const byMatch={}; allPreds.forEach(p=>{ (byMatch[p.match_id]||=[]).push(p); });
+  // Kun tips på LÅSTE kamper teller — aldri fremtidige/ulåste (røper ikke kommende tips)
+  const lockedIds = new Set(
+    matches.filter(m=>!(isKnockout(m.stage)&&!teamsSet(m)) && matchLocked(m, null, false)).map(m=>m.id)
+  );
+  const valid = allPreds.filter(p=>p.pred_home!=null && p.pred_away!=null && lockedIds.has(p.match_id));
+
+  // 1 — mest tippede resultat
+  if(valid.length){
+    const tally={};
+    valid.forEach(p=>{ const k=p.pred_home+"-"+p.pred_away; tally[k]=(tally[k]||0)+1; });
+    const top=Object.entries(tally).sort((a,b)=>b[1]-a[1])[0];
+    if(top) facts.push({icon:"🎯",text:`Mest tippede resultat er ${top[0]} — brukt ${top[1]} ganger.`});
+  }
+
+  // 2 — andel uavgjort-tips (nøytralt — ingen hjemme/borte på nøytral grunn)
+  if(valid.length){
+    let U=0;
+    valid.forEach(p=>{ if(p.pred_home===p.pred_away)U++; });
+    facts.push({icon:"⚖️",text:`${Math.round(U/valid.length*100)} % av alle tips er på uavgjort.`});
+  }
+
+  // 3 — gjennomsnittlig antall mål tippet
+  if(valid.length){
+    const avg = valid.reduce((s,p)=>s+p.pred_home+p.pred_away,0)/valid.length;
+    facts.push({icon:"⚽",text:`I snitt tipper dere ${avg.toFixed(1)} mål per kamp.`});
+  }
+
+  // 4 — kampen flest traff eksakt
+  if(played.length){
+    let best=null;
+    played.forEach(m=>{
+      const ps=(byMatch[m.id]||[]).filter(p=>p.pred_home!=null);
+      if(ps.length<5) return;
+      const exact=ps.filter(p=>p.pred_home===m.result_home && p.pred_away===m.result_away).length;
+      if(!best || exact>best.exact) best={m,exact,n:ps.length};
+    });
+    if(best && best.exact>0) facts.push({icon:"🔮",text:`Flest klarte å treffe eksakt på ${teamNo(best.m.home)}–${teamNo(best.m.away)} (${best.m.result_home}–${best.m.result_away}): ${best.exact} spillere.`});
+  }
+
+  // 5 — kampen som lurte flest (færrest poeng)
+  if(played.length){
+    let worst=null;
+    played.forEach(m=>{
+      const ps=(byMatch[m.id]||[]).filter(p=>p.pred_home!=null);
+      if(ps.length<5) return;
+      const hits=ps.filter(p=>scorePrediction(p.pred_home,p.pred_away,m.result_home,m.result_away,rules)>0).length;
+      const pct=hits/ps.length;
+      if(!worst || pct<worst.pct) worst={m,pct,n:ps.length};
+    });
+    if(worst) facts.push({icon:"😵",text:`Kampen som lurte flest var ${teamNo(worst.m.home)}–${teamNo(worst.m.away)} — bare ${Math.round(worst.pct*100)} % fikk poeng der.`});
+  }
+
+  // 6 — Norge-treff (hvis Norge har spilt)
+  const norMatches=played.filter(m=>m.home==="Norway"||m.away==="Norway"||m.home==="Norge"||m.away==="Norge");
+  if(norMatches.length){
+    let tip=0,hit=0;
+    norMatches.forEach(m=>{
+      (byMatch[m.id]||[]).filter(p=>p.pred_home!=null).forEach(p=>{
+        tip++; if(scorePrediction(p.pred_home,p.pred_away,m.result_home,m.result_away,rules)>0) hit++;
+      });
+    });
+    if(tip) facts.push({icon:"🇳🇴",text:`På Norges kamper får ${Math.round(hit/tip*100)} % av tipsene poeng${hit/tip<0.34?" — Norge er vanskelig å tippe!":"."}`});
+  }
+
+  // 7 — mest populære lag-svar (f.eks. toppscorer-land)
+  if(allBonus && allBonus.length){
+    for(const q of TEAM_PICK_QUESTIONS){
+      const tally={};
+      allBonus.forEach(b=>{ const v=b.picks&&b.picks[q.key]; if(v) tally[v]=(tally[v]||0)+1; });
+      const top=Object.entries(tally).sort((a,b)=>b[1]-a[1])[0];
+      if(top && top[1]>=3){
+        facts.push({icon:"🌍",text:`På «${q.label}» er ${top[0]} mest populært (${top[1]} stemmer).`});
+        break;
+      }
+    }
+  }
+
+  // 8 — beste enkeltkamp-runde (høyest snitt en kampdag)
+  if(played.length>=3){
+    const byDate={};
+    played.forEach(m=>{ (byDate[m.match_date]||=[]).push(m); });
+    let bestDay=null;
+    Object.entries(byDate).forEach(([date,ms])=>{
+      let tot=0,cnt=0;
+      ms.forEach(m=>{
+        (byMatch[m.id]||[]).filter(p=>p.pred_home!=null).forEach(p=>{
+          tot+=scorePrediction(p.pred_home,p.pred_away,m.result_home,m.result_away,rules); cnt++;
+        });
+      });
+      if(cnt>0){ const avg=tot/cnt; if(!bestDay||avg>bestDay.avg) bestDay={date,avg,ms:ms.length}; }
+    });
+    if(bestDay){
+      let dLabel=bestDay.date;
+      try{ dLabel=new Date(bestDay.date+"T12:00:00").toLocaleDateString("no-NO",{day:"numeric",month:"long"}); }catch(e){}
+      facts.push({icon:"📅",text:`Best snitt på en enkelt kampdag var ${dLabel} med ${bestDay.avg.toFixed(1)} poeng per tips.`});
+    }
+  }
+
+  // 9 — andel kamper noen tippet helt blankt resultat (0-0)
+  if(valid.length){
+    const nils=valid.filter(p=>p.pred_home===0 && p.pred_away===0).length;
+    if(nils>0) facts.push({icon:"🥱",text:`${nils} tips lyder på blankt 0–0 — de modige som tror på målløst drama.`});
+  }
+
+  // 10 — mest optimistiske enkelttips (flest mål i én kamp)
+  if(valid.length){
+    let max=null;
+    valid.forEach(p=>{ const g=p.pred_home+p.pred_away; if(!max||g>max.g) max={g,p}; });
+    if(max && max.g>=6){
+      const m=matches.find(x=>x.id===max.p.match_id);
+      const who=leaderboard.find(r=>r.id===max.p.user_id);
+      if(m && who) facts.push({icon:"🎆",text:`Tidenes mest offensive tips: ${who.nick||who.name} la inn ${max.p.pred_home}–${max.p.pred_away} (${max.g} mål!) på ${teamNo(m.home)}–${teamNo(m.away)}.`});
+    }
+  }
+
+  // 11 — gjennomsnittlig totalpoeng i ligaen
+  if(leaderboard.length){
+    const avg = leaderboard.reduce((s,r)=>s+(r.pts||0),0)/leaderboard.length;
+    facts.push({icon:"📊",text:`Snittet i ligaen er ${avg.toFixed(1)} poeng. Ligger du over, er du i øvre halvdel!`});
+  }
+
+  // 12 — andel som har tippet ALLE låste kamper (de pliktoppfyllende)
+  if(leaderboard.length && played.length){
+    const full=leaderboard.filter(r=>(r.predicted||0)>=played.length).length;
+    facts.push({icon:"✅",text:`${full} av ${leaderboard.length} spillere har tippet alle ${played.length} ferdigspilte kampene.`});
+  }
+
+  // 13 — målrikeste kamp som faktisk skjedde
+  if(played.length){
+    let mostGoals=null;
+    played.forEach(m=>{ const g=m.result_home+m.result_away; if(!mostGoals||g>mostGoals.g) mostGoals={g,m}; });
+    if(mostGoals && mostGoals.g>=5) facts.push({icon:"🌋",text:`Målrikeste kamp så langt: ${teamNo(mostGoals.m.home)} ${mostGoals.m.result_home}–${mostGoals.m.result_away} ${teamNo(mostGoals.m.away)} med ${mostGoals.g} mål.`});
+  }
+
+  return <div className="card"><h2 className="sec">Funfacts</h2>
+    <p className="note" style={{marginBottom:14}}>Morsom statistikk regnet ut fra alle tips og resultater. Oppdateres automatisk når nye resultater legges inn.</p>
+    {!facts.length ? <div className="empty">Ikke nok data ennå — kom tilbake når noen kamper er spilt!</div> :
+    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+      {facts.map((f,i)=>(
+        <div key={i} style={{display:"flex",gap:12,alignItems:"flex-start",background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:12,padding:"13px 14px"}}>
+          <span style={{fontSize:22,lineHeight:1,flexShrink:0}}>{f.icon}</span>
+          <span style={{fontSize:14,lineHeight:1.4}}>{f.text}</span>
+        </div>
+      ))}
+    </div>}
   </div>;
 }
 
