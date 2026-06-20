@@ -384,7 +384,7 @@ export default function Home() {
         {tab==="matches" && <MatchList matches={matches} />}
         {tab==="leaderboard" && <Leaderboard rows={leaderboard} rules={rules} total={matches.length} isAdmin={isAdmin} deleteUser={deleteUser} editUser={editUser} prevRanks={prevRanks} matches={matches} allPreds={allPreds} doubleStages={doubleStages} />}
         {tab==="awards" && <Awards awards={awards} />}
-        {tab==="minstat" && <MyStats me={me} leaderboard={leaderboard} matches={matches} allPreds={allPreds} rules={rules} doubleStages={doubleStages} />}
+        {tab==="minstat" && <MyStats me={me} leaderboard={leaderboard} matches={matches} allPreds={allPreds} rules={rules} doubleStages={doubleStages} prevRanks={prevRanks} />}
         {tab==="visste" && <DidYouKnow leaderboard={leaderboard} matches={matches} allPreds={allPreds} rules={rules} bonusAnswers={bonusAnswers} allBonus={allBonus} doubleStages={doubleStages} />}
         {tab==="pott" && <PrizePool profiles={profiles} leaderboard={leaderboard} />}
         {tab==="regler" && <Rules rules={rules} bonusRules={bonusRules} />}
@@ -889,7 +889,7 @@ function AwardCard({ def:d, w:list }){
 }
 
 /* ───────── Min statistikk ───────── */
-function MyStats({ me, leaderboard, matches, allPreds, rules, doubleStages }){
+function MyStats({ me, leaderboard, matches, allPreds, rules, doubleStages, prevRanks }){
   const ds=doubleStages||{};
   const myId=me?.id;
   const rank = leaderboard.findIndex(r=>r.id===myId);
@@ -913,6 +913,35 @@ function MyStats({ me, leaderboard, matches, allPreds, rules, doubleStages }){
   const tippet = played.length - notTipped;
   const treffPct = tippet>0 ? Math.round(treff/tippet*100) : 0;
 
+  // Favoritt-scoreline: hvilket resultat tipper jeg oftest (kun låste kamper, så ingen fremtidslekkasje)
+  const lockedIds = new Set(matches.filter(m=>!(isKnockout(m.stage)&&!teamsSet(m)) && matchLocked(m,null,false)).map(m=>m.id));
+  let favScore=null;
+  {
+    const tally={};
+    allPreds.filter(p=>p.user_id===myId && p.pred_home!=null && lockedIds.has(p.match_id))
+      .forEach(p=>{ const k=p.pred_home+"–"+p.pred_away; tally[k]=(tally[k]||0)+1; });
+    const top=Object.entries(tally).sort((a,b)=>b[1]-a[1])[0];
+    if(top) favScore={score:top[0],count:top[1]};
+  }
+
+  // Bevegelse siden forrige runde (rank_snapshot)
+  const prev = prevRanks?.[myId];
+  const cur = rank+1;
+  let move=null;
+  if(prev!=null && prev!==cur) move={dir: prev>cur?"opp":"ned", n: Math.abs(prev-cur)};
+  else if(prev!=null && prev===cur) move={dir:"likt", n:0};
+
+  // Ligasnitt for sammenligning
+  const N=leaderboard.length||1;
+  const avgPts = leaderboard.reduce((s,r)=>s+(r.pts||0),0)/N;
+  const avgExact = leaderboard.reduce((s,r)=>s+(r.exact||0),0)/N;
+  const avgBonus = leaderboard.reduce((s,r)=>s+(r.bonus||0),0)/N;
+  const cmp=(mineVal,avg)=>{
+    const d=mineVal-avg;
+    if(Math.abs(d)<0.5) return {txt:"på snittet",col:"var(--mut)"};
+    return d>0 ? {txt:`+${d.toFixed(1)} over snitt`,col:"var(--lime)"} : {txt:`${d.toFixed(1)} under snitt`,col:"var(--magenta)"};
+  };
+
   const Stat=({label,value,accent})=> (
     <div style={{flex:"1 1 90px",minWidth:90,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:12,padding:"12px 10px",textAlign:"center"}}>
       <div style={{fontSize:"clamp(20px,6vw,26px)",fontWeight:800,color:accent||"var(--ink)"}}>{value}</div>
@@ -924,22 +953,44 @@ function MyStats({ me, leaderboard, matches, allPreds, rules, doubleStages }){
     <p className="note" style={{marginBottom:14}}>Din egen oppsummering, basert på ferdigspilte kamper. Oppdateres automatisk.</p>
     <div style={{textAlign:"center",marginBottom:16}}>
       <div style={{fontSize:"clamp(24px,7vw,34px)",fontWeight:800}}>{meRow.nick||meRow.name}</div>
-      <div style={{display:"inline-flex",alignItems:"center",gap:8,marginTop:8,padding:"6px 16px",borderRadius:999,
-        background:"color-mix(in srgb, var(--gold) 14%, transparent)",border:"1px solid var(--gold)"}}>
-        <span style={{fontSize:18}}>🏅</span>
-        <span style={{fontWeight:800,color:"var(--gold)"}}>{rank+1}. plass</span>
-        <span className="note">av {leaderboard.length}</span>
+      <div style={{display:"flex",justifyContent:"center",flexWrap:"wrap",gap:8,marginTop:8}}>
+        <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"6px 16px",borderRadius:999,
+          background:"color-mix(in srgb, var(--gold) 14%, transparent)",border:"1px solid var(--gold)"}}>
+          <span style={{fontSize:18}}>🏅</span>
+          <span style={{fontWeight:800,color:"var(--gold)"}}>{rank+1}. plass</span>
+          <span className="note">av {leaderboard.length}</span>
+        </div>
+        {move && <div style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:999,
+          background:"var(--panel2)",border:"1px solid var(--line)",
+          color: move.dir==="opp"?"var(--lime)":move.dir==="ned"?"var(--magenta)":"var(--mut)"}}>
+          {move.dir==="opp" ? <>▲ {move.n} siden sist</> : move.dir==="ned" ? <>▼ {move.n} siden sist</> : <>● uendret siden sist</>}
+        </div>}
       </div>
     </div>
-    <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:10}}>
+    {favScore && <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:14,
+      padding:"10px 14px",background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:12}}>
+      <span style={{fontSize:18}}>🎲</span>
+      <span style={{fontSize:14}}>Favorittresultatet ditt er <strong>{favScore.score}</strong> — tippet {favScore.count} ganger.</span>
+    </div>}
+    <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:6}}>
       <Stat label="Totalpoeng" value={meRow.pts} accent="var(--ink)"/>
       <Stat label="Kamp-poeng" value={meRow.matchPts}/>
       <Stat label="Bonus" value={meRow.bonus} accent="var(--violet)"/>
     </div>
-    <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:10}}>
+    <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12,fontSize:11,textAlign:"center"}}>
+      <div style={{flex:"1 1 90px",minWidth:90,color:cmp(meRow.pts,avgPts).col}}>{cmp(meRow.pts,avgPts).txt}</div>
+      <div style={{flex:"1 1 90px",minWidth:90}}></div>
+      <div style={{flex:"1 1 90px",minWidth:90,color:cmp(meRow.bonus,avgBonus).col}}>{cmp(meRow.bonus,avgBonus).txt}</div>
+    </div>
+    <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:6}}>
       <Stat label="Eksakte" value={exact} accent="var(--teal)"/>
       <Stat label="Riktig utfall" value={outcome} accent="var(--gold)"/>
       <Stat label="Bom" value={wrong} accent="var(--magenta)"/>
+    </div>
+    <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12,fontSize:11,textAlign:"center"}}>
+      <div style={{flex:"1 1 90px",minWidth:90,color:cmp(exact,avgExact).col}}>{cmp(exact,avgExact).txt}</div>
+      <div style={{flex:"1 1 90px",minWidth:90}}></div>
+      <div style={{flex:"1 1 90px",minWidth:90}}></div>
     </div>
     <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
       <Stat label="Beste rekke (1 p+)" value={maxR} accent="var(--lime)"/>
@@ -981,6 +1032,41 @@ function DidYouKnow({ leaderboard, matches, allPreds, rules, bonusAnswers, allBo
   if(valid.length){
     const avg = valid.reduce((s,p)=>s+p.pred_home+p.pred_away,0)/valid.length;
     facts.push({icon:"⚽",text:`I snitt tipper dere ${avg.toFixed(1)} mål per kamp.`});
+  }
+
+  const matchById={}; matches.forEach(m=>{ matchById[m.id]=m; });
+
+  // 3b — snittalder på tipsene: hvor lenge før avspark tipset sist ble lagret
+  {
+    let totMin=0, n=0;
+    valid.forEach(p=>{
+      const m=matchById[p.match_id];
+      const ko=m && kickoffInstant(m.match_date, m.match_time);
+      if(!ko || !p.updated_at) return;
+      const diffMin=(ko.getTime() - new Date(p.updated_at).getTime())/60000;
+      if(diffMin>=0 && diffMin < 60*24*60){ totMin+=diffMin; n++; } // ignorer urimelige verdier
+    });
+    if(n>=10){
+      const avgMin=totMin/n;
+      let label;
+      if(avgMin>=2880) label=`${(avgMin/1440).toFixed(1)} dager`;
+      else if(avgMin>=120) label=`${Math.round(avgMin/60)} timer`;
+      else label=`${Math.round(avgMin)} minutter`;
+      facts.push({icon:"⏱️",text:`I snitt lagres tipsene ${label} før avspark.`});
+    }
+  }
+
+  // 3c — kampen med størst spredning (flest ulike tippede resultater)
+  if(played.length){
+    let widest=null;
+    played.forEach(m=>{
+      const ps=(byMatch[m.id]||[]).filter(p=>p.pred_home!=null);
+      if(ps.length<8) return;
+      const uniq=new Set(ps.map(p=>p.pred_home+"-"+p.pred_away)).size;
+      const ratio=uniq/ps.length;
+      if(!widest || uniq>widest.uniq || (uniq===widest.uniq && ratio>widest.ratio)) widest={m,uniq,ratio,n:ps.length};
+    });
+    if(widest) facts.push({icon:"🌪️",text:`Mest uenige var dere om ${teamNo(widest.m.home)}–${teamNo(widest.m.away)} — ${widest.uniq} forskjellige resultater ble tippet.`});
   }
 
   // 4 — kampen flest traff eksakt
