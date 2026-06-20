@@ -1020,19 +1020,6 @@ function DidYouKnow({ leaderboard, matches, allPreds, rules, bonusAnswers, allBo
     if(tip) facts.push({icon:"🇳🇴",text:`På Norges kamper får ${Math.round(hit/tip*100)} % av tipsene poeng${hit/tip<0.34?" — Norge er vanskelig å tippe!":"."}`});
   }
 
-  // 7 — mest populære lag-svar (f.eks. toppscorer-land)
-  if(allBonus && allBonus.length){
-    for(const q of TEAM_PICK_QUESTIONS){
-      const tally={};
-      allBonus.forEach(b=>{ const v=b.picks&&b.picks[q.key]; if(v) tally[v]=(tally[v]||0)+1; });
-      const top=Object.entries(tally).sort((a,b)=>b[1]-a[1])[0];
-      if(top && top[1]>=3){
-        facts.push({icon:"🌍",text:`På «${q.label}» er ${top[0]} mest populært (${top[1]} stemmer).`});
-        break;
-      }
-    }
-  }
-
   // 8 — beste enkeltkamp-runde (høyest snitt en kampdag)
   if(played.length>=3){
     const byDate={};
