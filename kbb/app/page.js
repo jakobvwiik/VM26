@@ -369,6 +369,7 @@ export default function Home() {
           <button className={tab==="matches"?"on":""} onClick={()=>setTab("matches")}>Kamper</button>
           <button className={tab==="leaderboard"?"on":""} onClick={()=>setTab("leaderboard")}>Tabell</button>
           <button className={tab==="awards"?"on":""} onClick={()=>setTab("awards")}>Prestasjoner</button>
+          <button className={tab==="minstat"?"on":""} onClick={()=>setTab("minstat")}>Min statistikk</button>
           <button className={tab==="pott"?"on":""} onClick={()=>setTab("pott")}>Pott</button>
           <button className={tab==="regler"?"on":""} onClick={()=>setTab("regler")}>Regler</button>
           {isAdmin && <button className={tab==="admin"?"on":""} onClick={()=>setTab("admin")}>Admin</button>}
@@ -382,6 +383,7 @@ export default function Home() {
         {tab==="matches" && <MatchList matches={matches} />}
         {tab==="leaderboard" && <Leaderboard rows={leaderboard} rules={rules} total={matches.length} isAdmin={isAdmin} deleteUser={deleteUser} editUser={editUser} prevRanks={prevRanks} matches={matches} allPreds={allPreds} doubleStages={doubleStages} />}
         {tab==="awards" && <Awards awards={awards} />}
+        {tab==="minstat" && <MyStats me={me} leaderboard={leaderboard} matches={matches} allPreds={allPreds} rules={rules} doubleStages={doubleStages} />}
         {tab==="pott" && <PrizePool profiles={profiles} leaderboard={leaderboard} />}
         {tab==="regler" && <Rules rules={rules} bonusRules={bonusRules} />}
         {tab==="admin" && isAdmin && <Admin supabase={supabase} matches={matches} rules={rules} bonusRules={bonusRules}
@@ -884,6 +886,67 @@ function AwardCard({ def:d, w:list }){
   );
 }
 
+/* ───────── Min statistikk ───────── */
+function MyStats({ me, leaderboard, matches, allPreds, rules, doubleStages }){
+  const ds=doubleStages||{};
+  const myId=me?.id;
+  const rank = leaderboard.findIndex(r=>r.id===myId);
+  const meRow = rank>=0 ? leaderboard[rank] : null;
+  if(!meRow) return <div className="card"><h2 className="sec">Min statistikk</h2><div className="empty">Fant ingen statistikk for kontoen din ennå. Legg inn noen tips først!</div></div>;
+
+  // Per-kamp gjennomgang (kun ferdigspilte), nyeste først
+  const mine={}; allPreds.filter(p=>p.user_id===myId).forEach(p=>{ mine[p.match_id]=p; });
+  const played=[...matches].filter(m=>m.result_home!=null&&m.result_away!=null)
+    .filter(m=>!(isKnockout(m.stage)&&!teamsSet(m))).sort((a,b)=>a.match_no-b.match_no);
+  let exact=0,outcome=0,wrong=0,notTipped=0,curR=0,maxR=0;
+  played.forEach(m=>{
+    const p=mine[m.id];
+    if(!p||p.pred_home==null){ notTipped++; curR=0; return; }
+    const sc=scorePrediction(p.pred_home,p.pred_away,m.result_home,m.result_away,rules);
+    if(sc===rules.exact_pts) exact++;
+    if(sc>0){ outcome+=(sc===rules.outcome_pts?1:0); curR++; maxR=Math.max(maxR,curR); }
+    else { wrong++; curR=0; }
+  });
+  const treff = exact + outcome; // antall kamper med poeng
+  const tippet = played.length - notTipped;
+  const treffPct = tippet>0 ? Math.round(treff/tippet*100) : 0;
+
+  const Stat=({label,value,accent})=> (
+    <div style={{flex:"1 1 90px",minWidth:90,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:12,padding:"12px 10px",textAlign:"center"}}>
+      <div style={{fontSize:"clamp(20px,6vw,26px)",fontWeight:800,color:accent||"var(--ink)"}}>{value}</div>
+      <div className="note" style={{fontSize:11,marginTop:2}}>{label}</div>
+    </div>
+  );
+
+  return <div className="card"><h2 className="sec">Min statistikk</h2>
+    <p className="note" style={{marginBottom:14}}>Din egen oppsummering, basert på ferdigspilte kamper. Oppdateres automatisk.</p>
+    <div style={{textAlign:"center",marginBottom:16}}>
+      <div style={{fontSize:"clamp(24px,7vw,34px)",fontWeight:800}}>{meRow.nick||meRow.name}</div>
+      <div style={{display:"inline-flex",alignItems:"center",gap:8,marginTop:8,padding:"6px 16px",borderRadius:999,
+        background:"color-mix(in srgb, var(--gold) 14%, transparent)",border:"1px solid var(--gold)"}}>
+        <span style={{fontSize:18}}>🏅</span>
+        <span style={{fontWeight:800,color:"var(--gold)"}}>{rank+1}. plass</span>
+        <span className="note">av {leaderboard.length}</span>
+      </div>
+    </div>
+    <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:10}}>
+      <Stat label="Totalpoeng" value={meRow.pts} accent="var(--ink)"/>
+      <Stat label="Kamp-poeng" value={meRow.matchPts}/>
+      <Stat label="Bonus" value={meRow.bonus} accent="var(--violet)"/>
+    </div>
+    <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:10}}>
+      <Stat label="Eksakte" value={exact} accent="var(--teal)"/>
+      <Stat label="Riktig utfall" value={outcome} accent="var(--gold)"/>
+      <Stat label="Bom" value={wrong} accent="var(--magenta)"/>
+    </div>
+    <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+      <Stat label="Beste rekke (1 p+)" value={maxR} accent="var(--lime)"/>
+      <Stat label="Treff­prosent" value={treffPct+"%"}/>
+      <Stat label="Tippet" value={tippet+"/"+played.length}/>
+    </div>
+  </div>;
+}
+
 function PrizePool({ profiles, leaderboard }){
   const paid = profiles.filter(p=>p.paid || isAdminEmail(p.email));
   const pot = paid.length*200;
@@ -935,10 +998,17 @@ function Leaderboard({ rows, rules, total, isAdmin, deleteUser, editUser, prevRa
   const [openId, setOpenId] = useState(null);   // hvilken spiller er ekspandert
   const [eName, setEName] = useState("");
   const [eNick, setENick] = useState("");
+  const [query, setQuery] = useState("");
   function startEdit(r){ setEditId(r.id); setEName(r.name||""); setENick(r.nick||""); }
   async function saveEdit(r){ await editUser(r, eName, eNick); setEditId(null); }
   const ds = doubleStages || {};
   const colCount = isAdmin ? 9 : 8;
+
+  // Form: siste 5 resultater som fargeprikker (nyeste til høyre)
+  function form(userId){
+    const bd = breakdown(userId).filter(x=>x.kind!=="ikke tippet"); // kun kamper spilleren faktisk tippet
+    return bd.slice(0,5).reverse(); // breakdown er nyeste først → reverse for eldst→nyest
+  }
 
   // Bygg poengoppdeling for én spiller: kun kamper som har resultat
   function breakdown(userId){
@@ -971,10 +1041,15 @@ function Leaderboard({ rows, rules, total, isAdmin, deleteUser, editUser, prevRa
   const kindColor = k => k==="eksakt"?"var(--teal)":k==="utfall"?"var(--gold)":k==="ikke tippet"?"var(--mut)":"var(--magenta)";
 
   return <div className="card"><h2 className="sec">Tabell</h2>
-    <p className="note" style={{marginBottom:14}}>Riktig resultat {rules.exact_pts} p · riktig utfall {rules.outcome_pts} p · feil {rules.wrong_pts}. Bonus teller med i totalen. Trykk på en spiller for å se poengene deres.{isAdmin?" Som admin kan du redigere eller slette spillere her.":""}</p>
+    <p className="note" style={{marginBottom:12}}>Riktig resultat {rules.exact_pts} p · riktig utfall {rules.outcome_pts} p · feil {rules.wrong_pts}. Bonus teller med i totalen. Trykk på en spiller for å se poengene deres.{isAdmin?" Som admin kan du redigere eller slette spillere her.":""}</p>
+    {rows.length>0 && <input className="inp" style={{marginBottom:14,fontSize:14}} placeholder="🔍 Søk etter spiller…" value={query} onChange={e=>setQuery(e.target.value)}/>}
     {rows.length===0?<div className="empty">Ingen spillere ennå.</div>:
     <div className="tablewrap"><table className="lb"><thead><tr><th>#</th><th></th><th>Spiller</th><th className="n tot">Tot</th><th className="n">Tips</th><th className="n">Eksakt</th><th className="n">Bonus</th><th className="n">Tippet</th>{isAdmin&&<th></th>}</tr></thead>
-    <tbody>{rows.map((r,i)=>(
+    <tbody>{rows.map((r,i)=>({r,i})).filter(({r})=>{
+        const q=query.trim().toLowerCase();
+        if(!q) return true;
+        return (r.nick||"").toLowerCase().includes(q) || (r.name||"").toLowerCase().includes(q);
+      }).map(({r,i})=>(
       editId===r.id ? (
         <tr key={r.id}>
           <td><span className={`rankbadge ${i===0?"g1":i===1?"g2":i===2?"g3":""}`}>{i+1}</span></td>
@@ -995,7 +1070,14 @@ function Leaderboard({ rows, rules, total, isAdmin, deleteUser, editUser, prevRa
       <React.Fragment key={r.id}>
       <tr style={{cursor:"pointer"}} onClick={()=>setOpenId(openId===r.id?null:r.id)}><td><span className={`rankbadge ${i===0?"g1":i===1?"g2":i===2?"g3":""}`}>{i+1}</span></td>
         <td className="n" style={{fontSize:12}}>{mv(r.id,i+1)}</td>
-        <td>{openId===r.id?"▾ ":"▸ "}{r.nick||r.name}{r.nick&&<span className="note"> · {r.name}</span>}</td>
+        <td>{openId===r.id?"▾ ":"▸ "}{r.nick||r.name}{r.nick&&<span className="note"> · {r.name}</span>}
+          {(()=>{ const f=form(r.id); if(!f.length) return null;
+            return <div style={{display:"flex",gap:3,marginTop:4}}>{f.map((x,fi)=>{
+              const c=x.kind==="eksakt"?"var(--teal)":x.kind==="utfall"?"var(--gold)":"var(--magenta)";
+              return <span key={fi} title={x.kind} style={{width:8,height:8,borderRadius:999,background:c,display:"inline-block"}}></span>;
+            })}</div>;
+          })()}
+        </td>
         <td className="n tot"><strong>{r.pts}</strong></td><td className="n">{r.matchPts}</td><td className="n">{r.exact}</td><td className="n">{r.bonus}</td>
         <td className="n"><span className="note">{r.predicted}/{total}</span></td>
         {isAdmin&&<td className="n" style={{whiteSpace:"nowrap"}} onClick={e=>e.stopPropagation()}>
