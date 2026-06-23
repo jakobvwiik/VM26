@@ -368,7 +368,10 @@ export default function Home() {
           <button className={tab==="bonus"?"on":""} onClick={()=>setTab("bonus")}>Bonus</button>
           <button className={tab==="matches"?"on":""} onClick={()=>setTab("matches")}>Kamper</button>
           <button className={tab==="leaderboard"?"on":""} onClick={()=>setTab("leaderboard")}>Tabell</button>
-          <button className={tab==="awards"?"on":""} onClick={()=>setTab("awards")}>Prestasjoner</button>
+          <button className={tab==="awards"?"on":""} onClick={()=>setTab("awards")}
+            style={tab==="awards" ? undefined : {color:"#fff",textShadow:"2px 2px 0 #1e63e6, 3px 3px 6px rgba(30,99,230,.45)"}}>
+            Prestasjoner
+          </button>
           <button className={tab==="minstat"?"on":""} onClick={()=>setTab("minstat")}>Spillerkort</button>
           <button className={tab==="visste"?"on":""} onClick={()=>setTab("visste")}>Funfacts</button>
           <button className={tab==="pott"?"on":""} onClick={()=>setTab("pott")}>Pott</button>
