@@ -840,8 +840,7 @@ function Awards({ awards }){
     {key:"skivebom",     emoji:"🧱", title:"Skivebommern",     desc:"Har bommet flest ganger (0 poeng)",           unit:"bom",     accent:RED},
     {key:"orken",        emoji:"🏜️", title:"Ørkenvandreren",   desc:"Lengst rekke med bom på rad",                 unit:"på rad",  accent:RED},
   ];
-  return <div className="card"><h2 className="sec">Spillerprestasjoner</h2>
-    <p className="note" style={{marginBottom:14}}>Topp 5 i hver kategori — lederen øverst. Oppdateres automatisk. Ved lik verdi teller flest kamper spilt, deretter høyest på tabellen.</p>
+  return <div className="card">
 
     {/* ════ Sponsorfelt: Grans Cola X ════ */}
     <div style={{fontSize:10,letterSpacing:".24em",textTransform:"uppercase",color:"#9ab4ff",fontWeight:700,textAlign:"center",marginBottom:10}}>Prestasjoner i samarbeid med</div>
@@ -894,13 +893,15 @@ function Awards({ awards }){
       background:"linear-gradient(135deg,#ffd24a 0%,#f0b400 100%)",color:"#3a2c00",
       boxShadow:"0 4px 14px rgba(240,180,0,.35)"}}>
       <div style={{fontWeight:800,fontSize:13.5,lineHeight:1.3}}>Hver prestasjonsvinner får en Cola X-t-skjorte</div>
-      <div style={{fontSize:11,opacity:.85,marginTop:3}}>9 vinnere · kåres når VM er over · <span style={{fontStyle:"italic"}}>(Vi spurte om øl-spons, men endte opp med Cola X t-skjorter.)</span></div>
+      <div style={{fontSize:11,opacity:.85,marginTop:3}}>12 vinnere · kåres når VM er over · <span style={{fontStyle:"italic"}}>(Vi spurte om øl-spons, men endte opp med Cola X t-skjorter.)</span></div>
     </div>
 
     {!awards ? <div className="empty">Ingen data ennå.</div> :
     <div className="awardgrid">
       {defs.map(d=>{ const w=awards[d.key]; return <AwardCard key={d.key} def={d} w={w}/>; })}
     </div>}
+
+    <p className="note" style={{marginTop:14,textAlign:"center"}}>Topp 5 i hver kategori — lederen øverst. Oppdateres automatisk. Ved lik verdi teller flest kamper spilt, deretter høyest på tabellen.</p>
 
     {/* Diskré sponsor-bunntekst */}
     <div style={{marginTop:16,borderRadius:12,border:"1px solid #243a73",background:"#070b1c",
