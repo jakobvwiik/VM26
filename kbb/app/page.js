@@ -841,11 +841,72 @@ function Awards({ awards }){
     {key:"orken",        emoji:"🏜️", title:"Ørkenvandreren",   desc:"Lengst rekke med bom på rad",                 unit:"på rad",  accent:RED},
   ];
   return <div className="card"><h2 className="sec">Spillerprestasjoner</h2>
-    <p className="note" style={{marginBottom:16}}>Topp 5 i hver kategori — lederen øverst. Oppdateres automatisk. Ved lik verdi teller flest kamper spilt, deretter høyest på tabellen.</p>
+    <p className="note" style={{marginBottom:14}}>Topp 5 i hver kategori — lederen øverst. Oppdateres automatisk. Ved lik verdi teller flest kamper spilt, deretter høyest på tabellen.</p>
+
+    {/* ════ Sponsorfelt: Grans Cola X ════ */}
+    <div style={{fontSize:10,letterSpacing:".24em",textTransform:"uppercase",color:"#9ab4ff",fontWeight:700,textAlign:"center",marginBottom:10}}>Prestasjoner i samarbeid med</div>
+
+    {/* Glød-innpakning så etiketten popper */}
+    <div style={{position:"relative",marginBottom:16,padding:3,borderRadius:18,
+      background:"linear-gradient(180deg,#2f7bff,#0a1b3c)",
+      boxShadow:"0 0 28px rgba(47,123,255,.45), 0 8px 30px rgba(0,0,0,.5)"}}>
+      <div style={{position:"relative",borderRadius:15,overflow:"hidden",background:"#070707"}}>
+        {/* Full-bleed kryssende X: svart fyll, blå kant */}
+        <svg viewBox="0 0 340 250" preserveAspectRatio="none" style={{position:"absolute",inset:0,width:"100%",height:"100%"}} aria-hidden>
+          <g fill="#070707" stroke="#2f7bff" strokeWidth="7" strokeLinejoin="miter">
+            <polygon points="30,2 96,2 310,248 244,248"/>
+            <polygon points="244,2 310,2 96,248 30,248"/>
+          </g>
+        </svg>
+        {/* svak vignett for dybde */}
+        <div style={{position:"absolute",inset:0,background:"radial-gradient(120% 90% at 50% 35%, transparent 40%, rgba(0,0,0,.55) 100%)"}} aria-hidden></div>
+
+        <div style={{position:"relative",padding:"20px 18px 14px",textAlign:"center"}}>
+          {/* GRÅNS i script med ring */}
+          <div style={{fontSize:22,fontWeight:700,fontStyle:"italic",letterSpacing:".03em",color:"#fff",
+            textShadow:"0 2px 8px #000, 0 0 5px #000",fontFamily:"Georgia,'Times New Roman',serif"}}>Grans</div>
+          {/* COLA + forme-X */}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:4,marginTop:2}}>
+            <span style={{fontSize:"clamp(44px,14vw,62px)",fontWeight:900,letterSpacing:"-.02em",color:"#fff",lineHeight:.9,
+              textShadow:"0 4px 14px #000, 0 0 7px #000",fontFamily:"'Arial Black','Helvetica Neue',Arial,sans-serif"}}>COLA</span>
+            <svg viewBox="0 0 100 100" style={{height:"clamp(50px,16vw,70px)",width:"auto",display:"block",filter:"drop-shadow(0 4px 7px rgba(0,0,0,.7))"}} aria-hidden>
+              <path d="M1 5 L21 5 L36 27 L26 41 Z" fill="#2f7bff"/>
+              <path d="M1 95 L21 95 L36 73 L26 59 Z" fill="#2f7bff"/>
+              <polygon points="25,3 45,3 99,97 79,97" fill="#fff"/>
+              <polygon points="79,3 99,3 45,97 25,97" fill="#fff"/>
+            </svg>
+          </div>
+          <div style={{marginTop:10,fontSize:12,fontWeight:800,letterSpacing:".3em",color:"#fff",textShadow:"0 2px 7px #000",lineHeight:1.5}}>UTEN<br/>SUKKER</div>
+          {/* lys delelinje med tre felt + signatur */}
+          <div style={{borderTop:"1px solid rgba(255,255,255,.32)",margin:"14px 2px 0",paddingTop:9,
+            display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,fontSize:7.5,letterSpacing:".06em",
+            textTransform:"uppercase",color:"#d6deee",fontWeight:600}}>
+            <span style={{textAlign:"left",flex:1}}>Grans Bryggeri<br/>siden 1899</span>
+            <span style={{flexShrink:0,fontFamily:"'Brush Script MT',cursive",fontStyle:"italic",fontSize:15,color:"#fff",opacity:.85,textTransform:"none"}}>M. Grans</span>
+            <span style={{textAlign:"right",flex:1}}>En norsk<br/>smaksopplevelse</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* Premie-utlysning — kompakt, gull */}
+    <div style={{marginBottom:16,borderRadius:12,padding:"10px 14px",textAlign:"center",
+      background:"linear-gradient(135deg,#ffd24a 0%,#f0b400 100%)",color:"#3a2c00",
+      boxShadow:"0 4px 14px rgba(240,180,0,.35)"}}>
+      <div style={{fontWeight:800,fontSize:13.5,lineHeight:1.3}}>Hver prestasjonsvinner får en Cola X-t-skjorte</div>
+      <div style={{fontSize:11,opacity:.85,marginTop:3}}>9 vinnere · kåres når VM er over · <span style={{fontStyle:"italic"}}>(Vi spurte om øl-spons, men endte opp med Cola X t-skjorter.)</span></div>
+    </div>
+
     {!awards ? <div className="empty">Ingen data ennå.</div> :
     <div className="awardgrid">
       {defs.map(d=>{ const w=awards[d.key]; return <AwardCard key={d.key} def={d} w={w}/>; })}
     </div>}
+
+    {/* Diskré sponsor-bunntekst */}
+    <div style={{marginTop:16,borderRadius:12,border:"1px solid #243a73",background:"#070b1c",
+      padding:"12px 16px",textAlign:"center"}}>
+      <div className="note" style={{fontSize:11,letterSpacing:".04em"}}>Prestasjoner sponses av <strong style={{color:"#7fa0ff"}}>Grans Cola X</strong> · Grans Bryggeri siden 1899 · En norsk smaksopplevelse</div>
+    </div>
   </div>;
 }
 
