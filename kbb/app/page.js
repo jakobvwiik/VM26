@@ -1075,21 +1075,45 @@ function MyStats({ me, leaderboard, matches, allPreds, rules, doubleStages, prev
   if(prev!=null && prev!==cur) move={dir: prev>cur?"opp":"ned", n: Math.abs(prev-cur)};
   else if(prev!=null && prev===cur) move={dir:"likt", n:0};
 
-  // Ligasnitt for sammenligning
+  // Ligasnitt for sammenligning — regn ut alle metrikker per spiller over ferdigspilte kamper
   const N=leaderboard.length||1;
   const avgPts = leaderboard.reduce((s,r)=>s+(r.pts||0),0)/N;
+  const avgMatchPts = leaderboard.reduce((s,r)=>s+(r.matchPts||0),0)/N;
   const avgExact = leaderboard.reduce((s,r)=>s+(r.exact||0),0)/N;
   const avgBonus = leaderboard.reduce((s,r)=>s+(r.bonus||0),0)/N;
-  const cmp=(mineVal,avg)=>{
+  const leagueAgg = useMemo(()=>{
+    const byU={}; allPreds.forEach(p=>{ (byU[p.user_id]||={})[p.match_id]=p; });
+    let sumOut=0,sumWrong=0,sumStreak=0,sumPct=0,cnt=0;
+    leaderboard.forEach(r=>{
+      let out=0,wr=0,cur=0,mx=0,tip=0,hit=0;
+      played.forEach(m=>{
+        const p=byU[r.id]?.[m.id];
+        if(!p||p.pred_home==null){ cur=0; return; }
+        tip++;
+        const sc=scorePrediction(p.pred_home,p.pred_away,m.result_home,m.result_away,rules);
+        if(sc>0){ hit++; if(sc===rules.outcome_pts) out++; cur++; mx=Math.max(mx,cur); }
+        else { wr++; cur=0; }
+      });
+      sumOut+=out; sumWrong+=wr; sumStreak+=mx; sumPct+=tip>0?hit/tip*100:0; cnt++;
+    });
+    const d=cnt||1;
+    return { avgOut:sumOut/d, avgWrong:sumWrong/d, avgStreak:sumStreak/d, avgPct:sumPct/d };
+  }, [allPreds, leaderboard, played, rules]);
+
+  // cmp: høyere er bedre som standard. lowerBetter snur fortegnet (f.eks. Bom).
+  const cmp=(mineVal,avg,lowerBetter=false)=>{
     const d=mineVal-avg;
     if(Math.abs(d)<0.5) return {txt:"på snittet",col:"var(--mut)"};
-    return d>0 ? {txt:`+${d.toFixed(1)} over snitt`,col:"var(--lime)"} : {txt:`${d.toFixed(1)} under snitt`,col:"var(--magenta)"};
+    const good = lowerBetter ? d<0 : d>0;
+    const sign = d>0 ? "+" : "";
+    return { txt:`${sign}${d.toFixed(1)} ${d>0?"over":"under"} snitt`, col: good?"var(--lime)":"var(--magenta)" };
   };
 
-  const Stat=({label,value,accent})=> (
-    <div style={{flex:"1 1 90px",minWidth:90,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:12,padding:"12px 10px",textAlign:"center"}}>
+  const Stat=({label,value,accent,sub})=> (
+    <div style={{flex:"1 1 90px",minWidth:90,background:"var(--panel2)",border:"1px solid var(--line)",borderRadius:12,padding:"12px 10px 10px",textAlign:"center"}}>
       <div style={{fontSize:"clamp(20px,6vw,26px)",fontWeight:800,color:accent||"var(--ink)"}}>{value}</div>
       <div className="note" style={{fontSize:11,marginTop:2}}>{label}</div>
+      {sub && <div style={{fontSize:10,marginTop:6,fontWeight:700,color:sub.col}}>{sub.txt}</div>}
     </div>
   );
 
@@ -1116,29 +1140,19 @@ function MyStats({ me, leaderboard, matches, allPreds, rules, doubleStages, prev
       <span style={{fontSize:18}}>🎲</span>
       <span style={{fontSize:14}}>Favorittresultatet ditt er <strong>{favScore.score}</strong> — tippet {favScore.count} ganger.</span>
     </div>}
-    <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:6}}>
-      <Stat label="Totalpoeng" value={meRow.pts} accent="var(--ink)"/>
-      <Stat label="Kamp-poeng" value={meRow.matchPts}/>
-      <Stat label="Bonus" value={meRow.bonus} accent="var(--violet)"/>
+    <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:8}}>
+      <Stat label="Totalpoeng" value={meRow.pts} accent="var(--ink)" sub={cmp(meRow.pts,avgPts)}/>
+      <Stat label="Kamp-poeng" value={meRow.matchPts} sub={cmp(meRow.matchPts,avgMatchPts)}/>
+      <Stat label="Bonus" value={meRow.bonus} accent="var(--violet)" sub={cmp(meRow.bonus,avgBonus)}/>
     </div>
-    <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12,fontSize:11,textAlign:"center"}}>
-      <div style={{flex:"1 1 90px",minWidth:90,color:cmp(meRow.pts,avgPts).col}}>{cmp(meRow.pts,avgPts).txt}</div>
-      <div style={{flex:"1 1 90px",minWidth:90}}></div>
-      <div style={{flex:"1 1 90px",minWidth:90,color:cmp(meRow.bonus,avgBonus).col}}>{cmp(meRow.bonus,avgBonus).txt}</div>
-    </div>
-    <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:6}}>
-      <Stat label="Eksakte" value={exact} accent="var(--teal)"/>
-      <Stat label="Riktig utfall" value={outcome} accent="var(--gold)"/>
-      <Stat label="Bom" value={wrong} accent="var(--magenta)"/>
-    </div>
-    <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12,fontSize:11,textAlign:"center"}}>
-      <div style={{flex:"1 1 90px",minWidth:90,color:cmp(exact,avgExact).col}}>{cmp(exact,avgExact).txt}</div>
-      <div style={{flex:"1 1 90px",minWidth:90}}></div>
-      <div style={{flex:"1 1 90px",minWidth:90}}></div>
+    <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:8}}>
+      <Stat label="Eksakte" value={exact} accent="var(--teal)" sub={cmp(exact,avgExact)}/>
+      <Stat label="Riktig utfall" value={outcome} accent="var(--gold)" sub={cmp(outcome,leagueAgg.avgOut)}/>
+      <Stat label="Bom" value={wrong} accent="var(--magenta)" sub={cmp(wrong,leagueAgg.avgWrong,true)}/>
     </div>
     <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-      <Stat label="Beste rekke (1 p+)" value={maxR} accent="var(--lime)"/>
-      <Stat label="Treff­prosent" value={treffPct+"%"}/>
+      <Stat label="Beste rekke (1 p+)" value={maxR} accent="var(--lime)" sub={cmp(maxR,leagueAgg.avgStreak)}/>
+      <Stat label="Treff­prosent" value={treffPct+"%"} sub={cmp(treffPct,leagueAgg.avgPct)}/>
       <Stat label="Tippet" value={tippet+"/"+played.length}/>
     </div>
   </div>;
