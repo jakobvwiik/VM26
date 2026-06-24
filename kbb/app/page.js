@@ -427,6 +427,9 @@ function NextMatchStrip({ matches, onGoToPredict }){
     return `${se}s`;
   }
 
+  // Tidligste avspark blant de viste kampene som ennå ikke har startet — alle kamper med denne tiden er "Neste"
+  const nextKo = picks.filter(p=> p.ko>now).reduce((min,p)=> min==null||p.ko<min ? p.ko : min, null);
+
   return (
     <div onClick={onGoToPredict} style={{cursor:"pointer",display:"flex",gap:8,marginBottom:14,alignItems:"stretch"}}>
       {picks.map((p,idx)=>{
@@ -434,18 +437,20 @@ function NextMatchStrip({ matches, onGoToPredict }){
         const hasStarted = now >= ko;                 // denne kampens eget avspark er passert
         // Pågående akkurat nå: startet, innenfor ~2,5t, og uten resultat ennå
         const isLive = hasStarted && now < ko + 2.5*3600*1000 && m.result_home==null;
-        const isPrimary = idx===0;
+        const isNext = !hasStarted && nextKo!=null && ko===nextKo;   // alle med tidligste avspark
+        // indeks blant kamper som verken er live eller "neste" (for Deretter/Så)
+        const laterIdx = picks.slice(0,idx).filter(q=> !(q.ko>now && nextKo!=null && q.ko===nextKo) && !(now>=q.ko && now<q.ko+2.5*3600*1000 && q.m.result_home==null) && now<q.ko).length;
         const koStr = new Date(ko).toLocaleString("no-NO",{timeZone:"Europe/Oslo",weekday:"short",hour:"2-digit",minute:"2-digit"});
-        // Etikett: "● Nå" på alle pågående, ellers "Stengt" hvis startet, ellers Neste/Deretter/Så
+        // Etikett: "● Nå" på alle pågående, "Stengt" hvis startet, "Neste" på alle med tidligste avspark, ellers Deretter/Så
         const label = isLive ? "● Nå"
           : hasStarted ? "Stengt"
-          : isPrimary ? "Neste" : idx===1 ? "Deretter" : "Så";
+          : isNext ? "Neste" : laterIdx===0 ? "Deretter" : "Så";
         return (
           <div key={m.id} style={{flex:1,minWidth:0,textAlign:"center",borderRadius:14,padding:"12px 8px",
             background:isLive?"linear-gradient(160deg,rgba(255,42,109,.18),rgba(124,92,255,.12))":"var(--panel2)",
-            border:`1px solid ${isLive?"var(--magenta)":isPrimary&&!hasStarted?"var(--teal)":"var(--line)"}`}}>
+            border:`1px solid ${isLive?"var(--magenta)":isNext?"var(--teal)":"var(--line)"}`}}>
             <div style={{fontSize:9.5,fontWeight:800,letterSpacing:".04em",textTransform:"uppercase",marginBottom:5,
-              color:isLive?"var(--magenta)":isPrimary&&!hasStarted?"var(--teal)":"var(--mut)"}}>
+              color:isLive?"var(--magenta)":isNext?"var(--teal)":"var(--mut)"}}>
               {label}
             </div>
             <div style={{fontWeight:700,fontSize:"clamp(11px,3vw,13px)",lineHeight:1.3,marginBottom:5,wordBreak:"break-word"}}>
