@@ -27,7 +27,7 @@ export default function Home() {
   const [bonusRules, setBonusRules] = useState({ ...DEFAULT_BONUS_RULES });
   const [doubleStages, setDoubleStages] = useState({});
   const [prevRanks, setPrevRanks] = useState({});
-  const [tab, setTab] = useState("predict");
+  const [tab, setTab] = useState("awards");
   const [sortMode, setSortMode] = useState("dato");
   const [loading, setLoading] = useState(true);
   const [needsTerms, setNeedsTerms] = useState(false);
@@ -575,12 +575,30 @@ function Predict({ matches, preds, predictedCount, sortMode, setSortMode, savePr
     return best?best.id:null;
   }, [matches]);
 
-  // Scroll automatisk ned til neste kamp når fanen åpnes / sortering endres
+  // Scroll rolig ned til neste kamp når fanen åpnes / sortering endres (~2,4 s, myk easing)
   useEffect(()=>{
-    if(nextRef.current){
-      const t=setTimeout(()=>{ nextRef.current?.scrollIntoView({behavior:"smooth",block:"center"}); }, 250);
-      return ()=>clearTimeout(t);
-    }
+    if(!nextRef.current) return;
+    let raf=0;
+    const t=setTimeout(()=>{
+      const el=nextRef.current;
+      if(!el) return;
+      const startY=window.scrollY;
+      const rect=el.getBoundingClientRect();
+      // mål: kampen midt på skjermen, med litt margin for toppstripen
+      const targetY=startY + rect.top - (window.innerHeight/2) + (rect.height/2);
+      const dist=targetY-startY;
+      if(Math.abs(dist)<8) return;          // allerede omtrent på plass
+      const dur=2400;                        // ms
+      const t0=performance.now();
+      const ease=p=> p<0.5 ? 4*p*p*p : 1-Math.pow(-2*p+2,3)/2;  // ease-in-out cubic
+      const step=(tNow)=>{
+        const p=Math.min(1,(tNow-t0)/dur);
+        window.scrollTo(0, startY + dist*ease(p));
+        if(p<1) raf=requestAnimationFrame(step);
+      };
+      raf=requestAnimationFrame(step);
+    }, 250);
+    return ()=>{ clearTimeout(t); if(raf) cancelAnimationFrame(raf); };
   }, [nextMatchId, sortMode]);
 
   // Render én rad, og fest ref på neste kamp så vi kan scrolle til den
