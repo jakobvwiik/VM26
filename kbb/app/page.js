@@ -28,7 +28,7 @@ export default function Home() {
   const [doubleStages, setDoubleStages] = useState({});
   const [prevRanks, setPrevRanks] = useState({});
   const [tab, setTab] = useState("predict");
-  const [sortMode, setSortMode] = useState("gruppe");
+  const [sortMode, setSortMode] = useState("dato");
   const [loading, setLoading] = useState(true);
   const [needsTerms, setNeedsTerms] = useState(false);
   const isAdmin = isAdminEmail(me?.email);
@@ -431,22 +431,28 @@ function NextMatchStrip({ matches, onGoToPredict }){
     <div onClick={onGoToPredict} style={{cursor:"pointer",display:"flex",gap:8,marginBottom:14,alignItems:"stretch"}}>
       {picks.map((p,idx)=>{
         const { m, ko } = p;
-        const isLive = idx===0 && !!live;
+        const hasStarted = now >= ko;                 // denne kampens eget avspark er passert
+        // Pågående akkurat nå: startet, innenfor ~2,5t, og uten resultat ennå
+        const isLive = hasStarted && now < ko + 2.5*3600*1000 && m.result_home==null;
         const isPrimary = idx===0;
         const koStr = new Date(ko).toLocaleString("no-NO",{timeZone:"Europe/Oslo",weekday:"short",hour:"2-digit",minute:"2-digit"});
+        // Etikett: "● Nå" på alle pågående, ellers "Stengt" hvis startet, ellers Neste/Deretter/Så
+        const label = isLive ? "● Nå"
+          : hasStarted ? "Stengt"
+          : isPrimary ? "Neste" : idx===1 ? "Deretter" : "Så";
         return (
           <div key={m.id} style={{flex:1,minWidth:0,textAlign:"center",borderRadius:14,padding:"12px 8px",
             background:isLive?"linear-gradient(160deg,rgba(255,42,109,.18),rgba(124,92,255,.12))":"var(--panel2)",
-            border:`1px solid ${isLive?"var(--magenta)":isPrimary?"var(--teal)":"var(--line)"}`}}>
+            border:`1px solid ${isLive?"var(--magenta)":isPrimary&&!hasStarted?"var(--teal)":"var(--line)"}`}}>
             <div style={{fontSize:9.5,fontWeight:800,letterSpacing:".04em",textTransform:"uppercase",marginBottom:5,
-              color:isLive?"var(--magenta)":isPrimary?"var(--teal)":"var(--mut)"}}>
-              {isLive ? "● Nå" : isPrimary ? "Neste" : idx===1 ? "Deretter" : "Så"}
+              color:isLive?"var(--magenta)":isPrimary&&!hasStarted?"var(--teal)":"var(--mut)"}}>
+              {label}
             </div>
             <div style={{fontWeight:700,fontSize:"clamp(11px,3vw,13px)",lineHeight:1.3,marginBottom:5,wordBreak:"break-word"}}>
               <div>{teamFlag(m.home)} {teamNo(m.home)}</div>
               <div style={{margin:"2px 0"}}>{teamFlag(m.away)} {teamNo(m.away)}</div>
             </div>
-            {isLive
+            {hasStarted
               ? <div style={{fontSize:11,color:"var(--mut)"}}>Stengt</div>
               : <div style={{fontSize:"clamp(11px,3.2vw,13px)",color:"var(--gold)",fontWeight:800,fontVariantNumeric:"tabular-nums"}}>{fmtCountdown(ko-now)}</div>}
             <div style={{fontSize:9.5,color:"var(--mut)",textTransform:"capitalize",marginTop:2}}>{koStr}</div>
@@ -556,8 +562,34 @@ function MatchRow({ m, preds, savePred, rules, isAdmin, teamList, allPreds, doub
 function Predict({ matches, preds, predictedCount, sortMode, setSortMode, savePred, rules, isAdmin, allPreds, doubleStages, totalPlayers, toggleMatchLock }){
   const pct = matches.length?Math.round(predictedCount/matches.length*100):0;
   const teamList = teamsFromMatches(matches);
-  let body;
+  const nextRef = useRef(null);
+
+  // Finn neste kommende kamp (tidligste avspark som ikke er passert)
+  const nextMatchId = useMemo(()=>{
+    const now=Date.now();
+    let best=null;
+    matches.forEach(m=>{
+      const ko=kickoffInstant(m.match_date,m.match_time)?.getTime();
+      if(ko && ko>=now && (!best || ko<best.ko)) best={id:m.id,ko};
+    });
+    return best?best.id:null;
+  }, [matches]);
+
+  // Scroll automatisk ned til neste kamp når fanen åpnes / sortering endres
+  useEffect(()=>{
+    if(nextRef.current){
+      const t=setTimeout(()=>{ nextRef.current?.scrollIntoView({behavior:"smooth",block:"center"}); }, 250);
+      return ()=>clearTimeout(t);
+    }
+  }, [nextMatchId, sortMode]);
+
+  // Render én rad, og fest ref på neste kamp så vi kan scrolle til den
   const rowProps = { preds, savePred, rules, isAdmin, teamList, allPreds, doubleStages, toggleMatchLock };
+  const renderRow = (m)=> m.id===nextMatchId
+    ? <div key={m.id} ref={nextRef} style={{scrollMarginTop:90}}><MatchRow m={m} {...rowProps}/></div>
+    : <MatchRow key={m.id} m={m} {...rowProps}/>;
+
+  let body;
   if(sortMode==="siste24" || sortMode==="neste24"){
     const now=Date.now(), H=3600*1000;
     const lo = sortMode==="siste24" ? now-24*H : now;
@@ -568,12 +600,12 @@ function Predict({ matches, preds, predictedCount, sortMode, setSortMode, savePr
       .map(x=>x.m);
     const tekst = sortMode==="siste24" ? "siste 24 timer" : "neste 24 timer";
     body = within.length
-      ? within.map(m=><MatchRow key={m.id} m={m} {...rowProps}/>)
+      ? within.map(renderRow)
       : <div className="card"><div className="empty">Ingen kamper i {tekst}. Bytt sortering for å se andre kamper.</div></div>;
   } else if(sortMode==="gruppe"){
     const grouped=groupByStage(matches);
     body = Object.entries(grouped).map(([stage,ms])=>(
-      <div key={stage}><h3 className="sub2">{stage}</h3>{ms.map(m=><MatchRow key={m.id} m={m} {...rowProps}/>)}</div>
+      <div key={stage}><h3 className="sub2">{stage}</h3>{ms.map(renderRow)}</div>
     ));
   } else if(sortMode==="dato"){
     const sorted=[...matches].sort((a,b)=>{
@@ -581,14 +613,14 @@ function Predict({ matches, preds, predictedCount, sortMode, setSortMode, savePr
       const kb=new Date(`${b.match_date}T${b.match_time||"00:00"}`).getTime();
       return (ka||Infinity)-(kb||Infinity);
     });
-    body = sorted.map(m=><MatchRow key={m.id} m={m} {...rowProps}/>);
+    body = sorted.map(renderRow);
   } else {
     const sorted=[...matches].sort((a,b)=>{
       const ka=[a.home,a.away].map(x=>(x||"").toLowerCase()).sort()[0];
       const kb=[b.home,b.away].map(x=>(x||"").toLowerCase()).sort()[0];
       return ka.localeCompare(kb);
     });
-    body = sorted.map(m=><MatchRow key={m.id} m={m} {...rowProps}/>);
+    body = sorted.map(renderRow);
   }
   return (
     <div>
