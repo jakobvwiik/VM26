@@ -564,6 +564,16 @@ function Predict({ matches, preds, predictedCount, sortMode, setSortMode, savePr
   const teamList = teamsFromMatches(matches);
   const nextRef = useRef(null);
 
+  // Rolig scroll til toppen (samme mykhet som auto-scrollen)
+  function scrollToTop(){
+    const startY=window.scrollY;
+    if(startY<8){ return; }
+    const dur=Math.min(1600, 500+startY*0.6), t0=performance.now();
+    const ease=p=> p<0.5 ? 4*p*p*p : 1-Math.pow(-2*p+2,3)/2;
+    const step=(tn)=>{ const p=Math.min(1,(tn-t0)/dur); window.scrollTo(0, startY*(1-ease(p))); if(p<1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  }
+
   // Finn neste kommende kamp (tidligste avspark som ikke er passert)
   const nextMatchId = useMemo(()=>{
     const now=Date.now();
@@ -661,6 +671,14 @@ function Predict({ matches, preds, predictedCount, sortMode, setSortMode, savePr
         </div>
       </div>
       {body}
+      <button onClick={scrollToTop} aria-label="Til toppen"
+        style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",zIndex:50,
+          display:"inline-flex",alignItems:"center",gap:6,
+          background:"var(--panel)",color:"var(--ink)",border:"1px solid var(--teal)",
+          borderRadius:999,padding:"10px 18px",fontWeight:700,fontSize:13,cursor:"pointer",
+          boxShadow:"0 4px 16px rgba(0,0,0,.45)"}}>
+        ↑ Til toppen
+      </button>
     </div>
   );
 }
