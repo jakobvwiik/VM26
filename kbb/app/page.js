@@ -563,9 +563,19 @@ function Predict({ matches, preds, predictedCount, sortMode, setSortMode, savePr
   const pct = matches.length?Math.round(predictedCount/matches.length*100):0;
   const teamList = teamsFromMatches(matches);
   const nextRef = useRef(null);
+  const [showTop, setShowTop] = useState(false);
+
+  // "Til toppen"-knapp: kun i dato-modus, kun når man har scrollet ned. Skjules ved klikk, kommer tilbake ved manuell scroll.
+  useEffect(()=>{
+    if(sortMode!=="dato"){ setShowTop(false); return; }
+    const onScroll=()=>setShowTop(window.scrollY>300);
+    window.addEventListener("scroll", onScroll, {passive:true});
+    return ()=>window.removeEventListener("scroll", onScroll);
+  }, [sortMode]);
 
   // Rolig scroll til toppen (samme mykhet som auto-scrollen)
   function scrollToTop(){
+    setShowTop(false);                       // skjul knappen ved klikk
     const startY=window.scrollY;
     if(startY<8){ return; }
     const dur=Math.min(1600, 500+startY*0.6), t0=performance.now();
@@ -585,8 +595,9 @@ function Predict({ matches, preds, predictedCount, sortMode, setSortMode, savePr
     return best?best.id:null;
   }, [matches]);
 
-  // Scroll rolig ned til neste kamp når fanen åpnes / sortering endres (~2,4 s, myk easing)
+  // Scroll rolig ned til neste kamp — kun i dato-modus (~2,4 s, myk easing)
   useEffect(()=>{
+    if(sortMode!=="dato") return;
     if(!nextRef.current) return;
     let raf=0;
     const t=setTimeout(()=>{
@@ -671,14 +682,14 @@ function Predict({ matches, preds, predictedCount, sortMode, setSortMode, savePr
         </div>
       </div>
       {body}
-      <button onClick={scrollToTop} aria-label="Til toppen"
+      {showTop && <button onClick={scrollToTop} aria-label="Til toppen"
         style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",zIndex:50,
           display:"inline-flex",alignItems:"center",gap:6,
           background:"var(--panel)",color:"var(--ink)",border:"1px solid var(--teal)",
           borderRadius:999,padding:"10px 18px",fontWeight:700,fontSize:13,cursor:"pointer",
           boxShadow:"0 4px 16px rgba(0,0,0,.45)"}}>
         ↑ Til toppen
-      </button>
+      </button>}
     </div>
   );
 }
