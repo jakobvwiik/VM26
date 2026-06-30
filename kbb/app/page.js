@@ -205,11 +205,16 @@ export default function Home() {
   const awards = useMemo(()=>{
     if(!profiles.length) return null;
     const byUser={}; allPreds.forEach(p=>{ (byUser[p.user_id] ||= {})[p.match_id]=p; });
-    // kamper med resultat, ikke TBA-sluttspill, i kampnummer-rekkefølge
+    // kamper med resultat, ikke TBA-sluttspill, i KRONOLOGISK rekkefølge (faktisk avspark, ikke match_no)
     const playedAsc=[...matches]
       .filter(m=>m.result_home!=null && m.result_away!=null)
       .filter(m=>!(isKnockout(m.stage) && !teamsSet(m)))
-      .sort((a,b)=>a.match_no-b.match_no);
+      .sort((a,b)=>{
+        const ka=kickoffInstant(a.match_date,a.match_time)?.getTime();
+        const kb=kickoffInstant(b.match_date,b.match_time)?.getTime();
+        if(ka!=null && kb!=null && ka!==kb) return ka-kb;   // primært etter avspark
+        return a.match_no-b.match_no;                       // fallback når tid mangler/er lik
+      });
 
     // Per kamp: hvor mange tippet, og hvor mange traff (1 p+) — for Flaksloddet og Lårskyteren
     const tippersPerMatch={}, hittersPerMatch={};
@@ -1045,10 +1050,16 @@ function MyStats({ me, leaderboard, matches, allPreds, rules, doubleStages, prev
   const meRow = rank>=0 ? leaderboard[rank] : null;
   if(!meRow) return <div className="card"><h2 className="sec">Spillerkort</h2><div className="empty">Fant ingen statistikk for kontoen din ennå. Legg inn noen tips først!</div></div>;
 
-  // Per-kamp gjennomgang (kun ferdigspilte), nyeste først
+  // Per-kamp gjennomgang (kun ferdigspilte), KRONOLOGISK rekkefølge for korrekt rekke
   const mine={}; allPreds.filter(p=>p.user_id===myId).forEach(p=>{ mine[p.match_id]=p; });
   const played=[...matches].filter(m=>m.result_home!=null&&m.result_away!=null)
-    .filter(m=>!(isKnockout(m.stage)&&!teamsSet(m))).sort((a,b)=>a.match_no-b.match_no);
+    .filter(m=>!(isKnockout(m.stage)&&!teamsSet(m)))
+    .sort((a,b)=>{
+      const ka=kickoffInstant(a.match_date,a.match_time)?.getTime();
+      const kb=kickoffInstant(b.match_date,b.match_time)?.getTime();
+      if(ka!=null && kb!=null && ka!==kb) return ka-kb;
+      return a.match_no-b.match_no;
+    });
   let exact=0,outcome=0,wrong=0,notTipped=0,curR=0,maxR=0;
   played.forEach(m=>{
     const p=mine[m.id];
@@ -1410,7 +1421,12 @@ function Leaderboard({ rows, rules, total, isAdmin, deleteUser, editUser, prevRa
     const played = (matches||[])
       .filter(m=>m.result_home!=null && m.result_away!=null)
       .filter(m=>!(isKnockout(m.stage) && !teamsSet(m)))
-      .sort((a,b)=>b.match_no-a.match_no);   // nyeste først
+      .sort((a,b)=>{                          // nyeste først, etter faktisk avspark
+        const ka=kickoffInstant(a.match_date,a.match_time)?.getTime();
+        const kb=kickoffInstant(b.match_date,b.match_time)?.getTime();
+        if(ka!=null && kb!=null && ka!==kb) return kb-ka;
+        return b.match_no-a.match_no;
+      });
     return played.map(m=>{
       const p=byMatch[m.id];
       const mult=ds[m.stage]?2:1;
