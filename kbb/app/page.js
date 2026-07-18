@@ -277,29 +277,30 @@ export default function Home() {
         wrongStreak:maxWrong, exactStreak:maxExact, rightStreak:maxRight };
     });
 
-    // Topp 3 for en metrikk. Tiebreaker: flest kamper spilt → høyest totalsum.
-    // min = laveste verdi som teller (ellers "ikke avgjort ennå").
+    // Alle prestasjoner krever at spilleren har tippet minst 80% av de låste kampene.
+    // Tiebreak (lik verdi): (1) flest kamper tippet, (2) høyest på tabellen (totalpoeng).
+    const minTips80 = Math.ceil(lockedMatches.length*0.8);
+    const qualifies = s => s.tipCount >= minTips80;
+
+    // Topp 5 for HØYESTE verdi. min = laveste verdi som teller (ellers "ikke avgjort ennå").
     function win(metric, min=1){
-      const pool=stats.filter(s=>s[metric]>=min);
+      const pool=stats.filter(s=>qualifies(s) && s[metric]>=min);
       if(!pool.length) return null;
-      const sorted=[...pool].sort((a,b)=> b[metric]-a[metric] || b.predicted-a.predicted || b.total-a.total);
+      const sorted=[...pool].sort((a,b)=> b[metric]-a[metric] || b.tipCount-a.tipCount || b.total-a.total);
       return sorted.slice(0,5).map(s=>({ nick:s.nick, name:s.name, value:s[metric] }));
     }
-    // Topp 5 for LAVESTE verdi. needFull = krever at spiller har tippet (nesten) alle låste kamper,
-    // så "færrest mål" gjenspeiler tippestil, ikke at man har tippet få kamper.
-    function low(metric, needFull){
-      const minTips = needFull ? Math.ceil(lockedMatches.length*0.8) : 1;
-      const pool=stats.filter(s=>s.tipCount>=minTips && s.tipCount>0);
+    // Topp 5 for LAVESTE verdi.
+    function low(metric){
+      const pool=stats.filter(s=>qualifies(s));
       if(!pool.length) return null;
-      const sorted=[...pool].sort((a,b)=> a[metric]-b[metric] || b.predicted-a.predicted || b.total-a.total);
+      const sorted=[...pool].sort((a,b)=> a[metric]-b[metric] || b.tipCount-a.tipCount || b.total-a.total);
       return sorted.slice(0,5).map(s=>({ nick:s.nick, name:s.name, value:s[metric] }));
     }
-    // For "flest mål" gjelder samme rettferdighet: krev mange tips, ellers vinner bare den som tippet mest.
+    // Topp 5 for HØYESTE verdi (samme krav som win, egen funksjon beholdt for tydelighet).
     function highFair(metric){
-      const minTips = Math.ceil(lockedMatches.length*0.8);
-      const pool=stats.filter(s=>s.tipCount>=minTips);
+      const pool=stats.filter(s=>qualifies(s));
       if(!pool.length) return null;
-      const sorted=[...pool].sort((a,b)=> b[metric]-a[metric] || b.predicted-a.predicted || b.total-a.total);
+      const sorted=[...pool].sort((a,b)=> b[metric]-a[metric] || b.tipCount-a.tipCount || b.total-a.total);
       return sorted.slice(0,5).map(s=>({ nick:s.nick, name:s.name, value:s[metric] }));
     }
     return {
@@ -311,7 +312,7 @@ export default function Home() {
       flakslodd:    win("soloHits", 1),
       pessimist:    win("drawTips", 1),
       malgalopp:    highFair("goalsTipped"),
-      gjerrigknark: low("goalsTipped", true),
+      gjerrigknark: low("goalsTipped"),
       larskyter:    win("soloMiss", 1),
       skivebom:     win("wrong"),
       orken:        win("wrongStreak", 2),
@@ -1032,7 +1033,7 @@ function Awards({ awards }){
       {defs.map(d=>{ const w=awards[d.key]; return <AwardCard key={d.key} def={d} w={w}/>; })}
     </div>}
 
-    <p className="note" style={{marginTop:14,textAlign:"center"}}>Topp 5 i hver kategori — lederen øverst. Oppdateres automatisk. Ved lik verdi teller flest kamper spilt, deretter høyest på tabellen.</p>
+    <p className="note" style={{marginTop:14,textAlign:"center"}}>Topp 5 i hver kategori — lederen øverst. Oppdateres automatisk. Krever at du har tippet minst 80 % av kampene. Ved lik verdi teller flest kamper tippet, deretter høyest på tabellen.</p>
 
     {/* Diskré sponsor-bunntekst */}
     <div style={{marginTop:16,borderRadius:12,border:"1px solid #243a73",background:"#070b1c",
