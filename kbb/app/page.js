@@ -354,7 +354,7 @@ export default function Home() {
   return (
     <>
       {needsTerms && <TermsModal onAccept={acceptTerms} />}
-      {!needsTerms && showInfo && <InfoModal onClose={()=>setShowInfo(false)} leaderboard={leaderboard} profiles={profiles} />}
+      {!needsTerms && showInfo && <InfoModal onClose={()=>setShowInfo(false)} leaderboard={leaderboard} profiles={profiles} awards={awards} />}
       <header className="band">
         <div className="bandinner">
           <div className="kicker">★ Privat tippeliga · VM 2026 ★</div>
@@ -503,8 +503,9 @@ function TermsModal({ onAccept }){
   );
 }
 
-/* ───────── Info-popup: foreløpig topp 3 + premie + klagefrist ───────── */
-function InfoModal({ onClose, leaderboard, profiles }){
+/* ───────── Info-popup: side 1 topp 3 + premie, side 2 prestasjonsvinnere ───────── */
+function InfoModal({ onClose, leaderboard, profiles, awards }){
+  const [page, setPage] = useState(1);
   const top3 = (leaderboard||[]).slice(0,3);
   const paid = (profiles||[]).filter(p=>p.paid || isAdminEmail(p.email));
   const pot = paid.length*200;
@@ -514,54 +515,98 @@ function InfoModal({ onClose, leaderboard, profiles }){
     { pct:20, label:"2. plass", color:"#cdd3ea",     medal:"🥈" },
     { pct:10, label:"3. plass", color:"#e08a4a",     medal:"🥉" },
   ];
+  // Prestasjoner (t-skjorte-vinnere) — key/emoji/title/unit + fargegruppe
+  const GREEN="var(--teal)", GUL="var(--gold)", RED="var(--magenta)";
+  const prizeDefs=[
+    {key:"skarpskytter", emoji:"🎯", title:"Skarpskytteren",  unit:"eksakte",  accent:GREEN},
+    {key:"gullgraver",   emoji:"⛏️", title:"Gullgraveren",     unit:"på rad",   accent:GREEN},
+    {key:"perfeksjonist",emoji:"💎", title:"Perfeksjonisten",  unit:"på rad",   accent:GREEN},
+    {key:"bonusjeger",   emoji:"🧠", title:"Bonusjegeren",     unit:"bonus-p",  accent:GREEN},
+    {key:"dobbeltgjenger",emoji:"⚡", title:"Dobbeltgjengeren", unit:"poeng",    accent:GREEN},
+    {key:"flakslodd",    emoji:"🍀", title:"Flaksloddet",       unit:"treff",    accent:GREEN},
+    {key:"pessimist",    emoji:"🤝", title:"Pessimisten",       unit:"uavgjort", accent:GUL},
+    {key:"malgalopp",    emoji:"⚽", title:"Målgaloppen",        unit:"mål",      accent:GUL},
+    {key:"gjerrigknark", emoji:"🔒", title:"Gjerrigknarken",    unit:"mål",      accent:RED},
+    {key:"larskyter",    emoji:"🦵", title:"Lårskyteren",        unit:"bom",      accent:RED},
+    {key:"skivebom",     emoji:"🧱", title:"Skivebommern",     unit:"bom",      accent:RED},
+    {key:"orken",        emoji:"🏜️", title:"Ørkenvandreren",   unit:"på rad",   accent:RED},
+  ];
+
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(5,4,18,.88)",backdropFilter:"blur(3px)",zIndex:100,
       display:"flex",alignItems:"center",justifyContent:"center",padding:16,overflowY:"auto"}}>
       <div className="card" style={{maxWidth:520,width:"100%",margin:"auto"}}>
-        <h2 style={{textAlign:"center",fontWeight:800,fontSize:"clamp(17px,4.5vw,20px)",margin:"2px 0 4px",letterSpacing:".02em"}}>🏆 Foreløpig topp 3</h2>
-        <p className="note" style={{textAlign:"center",marginBottom:14}}>Resultatene er klare og juryen er ferdig med rettingen. Premiepott: <strong style={{color:"var(--ink)"}}>{fmt(pot)} kr</strong>. Nå gjenstår kun klagefristen.</p>
 
-        {top3.length===0
-          ? <div className="empty">Ingen resultater ennå.</div>
-          : <div style={{display:"flex",flexDirection:"column",gap:14,marginBottom:16}}>
-            {splits.map((s,i)=>{
-              const amount = Math.round(pot*s.pct/100);
-              const w = top3[i];
-              return (
-                <div key={i} style={{borderRadius:12,padding:"12px 14px",
-                  background: i===0 ? "linear-gradient(135deg,rgba(255,206,58,.12),rgba(255,206,58,.02))" : "var(--panel2)",
-                  border:`1px solid ${i===0?"var(--gold)":"var(--line)"}`}}>
-                  <div className="between" style={{marginBottom:8,alignItems:"flex-start"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
-                      <span style={{fontSize:22,flexShrink:0}}>{s.medal}</span>
-                      <div style={{minWidth:0}}>
-                        {w ? <>
-                          <div style={{fontWeight:800,fontSize:16,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{w.nick||w.name}</div>
-                          <div className="note" style={{fontSize:11.5}}>{w.pts} poeng{w.nick?` · ${w.name}`:""}</div>
-                        </> : <div className="note">Ingen ennå</div>}
+        {page===1 ? <>
+          <h2 style={{textAlign:"center",fontWeight:800,fontSize:"clamp(17px,4.5vw,20px)",margin:"2px 0 4px",letterSpacing:".02em"}}>🏆 Foreløpig topp 3</h2>
+          <p className="note" style={{textAlign:"center",marginBottom:14}}>Resultatene er klare og juryen er ferdig med rettingen. Premiepott: <strong style={{color:"var(--ink)"}}>{fmt(pot)} kr</strong>. Nå gjenstår kun klagefristen.</p>
+
+          {top3.length===0
+            ? <div className="empty">Ingen resultater ennå.</div>
+            : <div style={{display:"flex",flexDirection:"column",gap:14,marginBottom:16}}>
+              {splits.map((s,i)=>{
+                const amount = Math.round(pot*s.pct/100);
+                const w = top3[i];
+                return (
+                  <div key={i} style={{borderRadius:12,padding:"12px 14px",
+                    background: i===0 ? "linear-gradient(135deg,rgba(255,206,58,.12),rgba(255,206,58,.02))" : "var(--panel2)",
+                    border:`1px solid ${i===0?"var(--gold)":"var(--line)"}`}}>
+                    <div className="between" style={{marginBottom:8,alignItems:"flex-start"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
+                        <span style={{fontSize:22,flexShrink:0}}>{s.medal}</span>
+                        <div style={{minWidth:0}}>
+                          {w ? <>
+                            <div style={{fontWeight:800,fontSize:16,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{w.nick||w.name}</div>
+                            <div className="note" style={{fontSize:11.5}}>{w.pts} poeng{w.nick?` · ${w.name}`:""}</div>
+                          </> : <div className="note">Ingen ennå</div>}
+                        </div>
+                      </div>
+                      <div style={{textAlign:"right",flexShrink:0}}>
+                        <div style={{fontWeight:800,fontSize:17,color:s.color}}>{fmt(amount)} kr</div>
+                        <div className="note" style={{fontSize:10}}>{s.label} · {s.pct}%</div>
                       </div>
                     </div>
-                    <div style={{textAlign:"right",flexShrink:0}}>
-                      <div style={{fontWeight:800,fontSize:17,color:s.color}}>{fmt(amount)} kr</div>
-                      <div className="note" style={{fontSize:10}}>{s.label} · {s.pct}%</div>
+                    <div style={{height:12,background:"#0c0a22",border:"1px solid var(--line)",borderRadius:999,overflow:"hidden"}}>
+                      <div style={{height:"100%",width:s.pct+"%",background:s.color,opacity:.85}}/>
                     </div>
                   </div>
-                  <div style={{height:12,background:"#0c0a22",border:"1px solid var(--line)",borderRadius:999,overflow:"hidden"}}>
-                    <div style={{height:"100%",width:s.pct+"%",background:s.color,opacity:.85}}/>
+                );
+              })}
+            </div>}
+
+          <div style={{borderRadius:12,padding:"13px 14px",marginBottom:16,textAlign:"center",
+            background:"linear-gradient(180deg,rgba(255,45,126,.10),rgba(255,45,126,.02))",border:"1px solid var(--magenta)"}}>
+            <div style={{fontWeight:800,fontSize:14,marginBottom:4}}>⚠️ Klagefrist: onsdag 20:00</div>
+            <div className="note" style={{fontSize:13,lineHeight:1.5}}>Har du en innsigelse mot poeng eller kåringer, må den meldes inn innen onsdag kl. 20:00. Etter det regnes resultatene som endelige.</div>
+          </div>
+
+          <button className="btn primary" style={{width:"100%",justifyContent:"center"}} onClick={()=>setPage(2)}>Neste →</button>
+        </> : <>
+          <h2 style={{textAlign:"center",fontWeight:800,fontSize:"clamp(17px,4.5vw,20px)",margin:"2px 0 4px",letterSpacing:".02em"}}>👕 Prestasjonsvinnere</h2>
+          <p className="note" style={{textAlign:"center",marginBottom:14}}>Disse vinner hver sin <strong style={{color:"#7fa0ff"}}>Grans Cola X</strong>-t-skjorte — én per prestasjon!</p>
+
+          <div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:16}}>
+            {prizeDefs.map(d=>{
+              const w=(awards?.[d.key]||[])[0];
+              return (
+                <div key={d.key} style={{display:"flex",alignItems:"center",gap:11,borderRadius:11,padding:"10px 13px",
+                  background:"var(--panel2)",border:`1px solid ${d.accent}`}}>
+                  <span style={{fontSize:20,flexShrink:0}}>{d.emoji}</span>
+                  <div style={{minWidth:0,flex:1}}>
+                    <div style={{fontSize:11,fontWeight:800,letterSpacing:".05em",textTransform:"uppercase",color:d.accent}}>{d.title}</div>
+                    <div style={{fontWeight:800,fontSize:15,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{w ? (w.nick||w.name) : "—"}</div>
                   </div>
+                  {w && <div style={{flexShrink:0,textAlign:"right",fontWeight:800,fontSize:13,color:d.accent}}>{w.value} <span style={{fontSize:9,opacity:.85}}>{d.unit.toUpperCase()}</span></div>}
                 </div>
               );
             })}
-          </div>}
+          </div>
 
-        {/* Klagefrist-påminnelse */}
-        <div style={{borderRadius:12,padding:"13px 14px",marginBottom:16,textAlign:"center",
-          background:"linear-gradient(180deg,rgba(255,45,126,.10),rgba(255,45,126,.02))",border:"1px solid var(--magenta)"}}>
-          <div style={{fontWeight:800,fontSize:14,marginBottom:4}}>⚠️ Klagefrist: onsdag 20:00</div>
-          <div className="note" style={{fontSize:13,lineHeight:1.5}}>Har du en innsigelse mot poeng eller kåringer, må den meldes inn innen onsdag kl. 20:00. Etter det regnes resultatene som endelige.</div>
-        </div>
-
-        <button className="btn primary" style={{width:"100%",justifyContent:"center"}} onClick={onClose}>Skjønner!</button>
+          <div className="row" style={{gap:8}}>
+            <button className="btn" style={{flex:"0 0 auto"}} onClick={()=>setPage(1)}>← Tilbake</button>
+            <button className="btn primary" style={{flex:1,justifyContent:"center"}} onClick={onClose}>Skjønner!</button>
+          </div>
+        </>}
       </div>
     </div>
   );
