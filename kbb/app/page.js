@@ -909,12 +909,15 @@ function Bonus({ matches, bonus, answers, rules, saveBonus, locked }){
             else { status="red"; pts=0; }
           }
           return (
-          <div key={i} style={{display:"flex",gap:10,alignItems:"center",...rowStyle(status)}}>
-            <span className="rankbadge">{i+1}</span>
-            <select className="inp" disabled={locked} style={{flex:1}} value={teams[i]||""} onChange={e=>setTeam(i,e.target.value)}>
-              <option value="">— velg lag —</option>{teamList.map(t=><option key={t} value={t}>{teamLabel(t)}</option>)}
-            </select>
-            {pill(status,pts)}
+          <div key={i} style={rowStyle(status)}>
+            <div style={{display:"flex",gap:10,alignItems:"center"}}>
+              <span className="rankbadge">{i+1}</span>
+              <select className="inp" disabled={locked} style={{flex:1}} value={teams[i]||""} onChange={e=>setTeam(i,e.target.value)}>
+                <option value="">— velg lag —</option>{teamList.map(t=><option key={t} value={t}>{teamLabel(t)}</option>)}
+              </select>
+              {pill(status,pts)}
+            </div>
+            {locked && correctTeams[i] && <div className="note" style={{marginTop:5,marginLeft:36,fontSize:11.5}}>Fasit: <strong style={{color:"var(--teal)"}}>{teamLabel(correctTeams[i])}</strong></div>}
           </div>
           );
         })}
@@ -929,7 +932,9 @@ function Bonus({ matches, bonus, answers, rules, saveBonus, locked }){
             <label style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>{q.label} {pill(status,rules.guess)}</label>
             <select className="inp" disabled={locked} value={val} onChange={e=>setPick(q.key,e.target.value)}>
               <option value="">— velg lag —</option>{teamList.map(t=><option key={t} value={t}>{teamLabel(t)}</option>)}
-            </select></div>;
+            </select>
+            {locked && corr && <div className="note" style={{marginTop:5,fontSize:11.5}}>Fasit: <strong style={{color:"var(--teal)"}}>{teamLabel(corr)}</strong></div>}
+          </div>;
         })}
       </div>
     </div>
