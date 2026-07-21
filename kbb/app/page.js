@@ -354,7 +354,7 @@ export default function Home() {
   return (
     <>
       {needsTerms && <TermsModal onAccept={acceptTerms} />}
-      {!needsTerms && showInfo && <InfoModal onClose={()=>setShowInfo(false)} />}
+      {!needsTerms && showInfo && <InfoModal onClose={()=>setShowInfo(false)} leaderboard={leaderboard} profiles={profiles} />}
       <header className="band">
         <div className="bandinner">
           <div className="kicker">★ Privat tippeliga · VM 2026 ★</div>
@@ -503,37 +503,64 @@ function TermsModal({ onAccept }){
   );
 }
 
-/* ───────── Info-popup: veien til en vinner ───────── */
-function InfoModal({ onClose }){
-  const steps = [
-    { when:"Søndag, 1 time etter sluttsignal", icon:"🔒", title:"Bonusvinduet stenger",
-      text:"Fra en time etter dommer blåser av finalekampen teller ingen nye hendelser inn på bonuspoengene, uansett hva som skjer i etterkant — for eksempel at Trump gir det velkjente håndtrykket til kaptein, eller at journalister omtaler mesterskapet som et sirkus." },
-    { when:"Mandag 02:00", icon:"🔮", title:"En sannsynlig vinner",
-      text:"Med bonusvinduet stengt er det svært sannsynlig at vi allerede da vet hvem som vinner — men det er fortsatt uoffisielt til juryen har fullført researchen." },
-    { when:"Tirsdag 20:00", icon:"🔍", title:"Researchen er ferdig",
-      text:"Senest da har juryen fullført gjennomgangen av alle bonuspoeng og kåringer, og appen skal være helt oppdatert." },
-    { when:"Onsdag 20:00", icon:"⚠️", title:"Klagefrist",
-      text:"Det skal ekstremt mye til for at en allerede godkjent avgjørelse blir endret, men juryen kan ta feil. Har du en innsigelse, må den meldes inn innen denne fristen." },
-    { when:"Onsdag 22:00", icon:"🏆", title:"Vinneren er klar", gold:true,
-      text:"Senest her er det ingen tvil om hvem som løfter pokalen i PROGNOSESENTERET." },
+/* ───────── Info-popup: foreløpig topp 3 + premie + klagefrist ───────── */
+function InfoModal({ onClose, leaderboard, profiles }){
+  const top3 = (leaderboard||[]).slice(0,3);
+  const paid = (profiles||[]).filter(p=>p.paid || isAdminEmail(p.email));
+  const pot = paid.length*200;
+  const fmt = n => n.toLocaleString("no-NO");
+  const splits = [
+    { pct:70, label:"1. plass", color:"var(--gold)", medal:"🥇" },
+    { pct:20, label:"2. plass", color:"#cdd3ea",     medal:"🥈" },
+    { pct:10, label:"3. plass", color:"#e08a4a",     medal:"🥉" },
   ];
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(5,4,18,.88)",backdropFilter:"blur(3px)",zIndex:100,
       display:"flex",alignItems:"center",justifyContent:"center",padding:16,overflowY:"auto"}}>
-      <div className="card" style={{maxWidth:560,width:"100%",margin:"auto"}}>
-        <h2 style={{textAlign:"center",fontWeight:800,fontSize:"clamp(17px,4.5vw,20px)",margin:"2px 0 8px",letterSpacing:".02em"}}>📋 Veien til en endelig vinner</h2>
-        <p className="note" style={{textAlign:"center",marginBottom:16}}>Mye avgjøres først når finalen er blåst av, men juryen trenger litt tid til å gjøre research skikkelig før alt godkjennes. Slik ser tidslinjen ut:</p>
-        <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:18}}>
-          {steps.map((s,i)=>(
-            <div key={i} style={{borderRadius:12,padding:"14px 14px",textAlign:"center",
-              background:s.gold?"linear-gradient(180deg,rgba(255,206,58,.10),rgba(255,206,58,.02))":"var(--panel2)",
-              border:`1px solid ${s.gold?"var(--gold)":"var(--line)"}`}}>
-              <div style={{color:"var(--gold)",fontWeight:800,fontSize:"clamp(15px,4vw,18px)",marginBottom:4}}>{s.when}</div>
-              <div style={{fontWeight:800,fontSize:14,marginBottom:6}}>{s.icon} {s.title}</div>
-              <div className="note" style={{fontSize:13,lineHeight:1.5}}>{s.text}</div>
-            </div>
-          ))}
+      <div className="card" style={{maxWidth:520,width:"100%",margin:"auto"}}>
+        <h2 style={{textAlign:"center",fontWeight:800,fontSize:"clamp(17px,4.5vw,20px)",margin:"2px 0 4px",letterSpacing:".02em"}}>🏆 Foreløpig topp 3</h2>
+        <p className="note" style={{textAlign:"center",marginBottom:14}}>Resultatene er klare og juryen er ferdig med rettingen. Premiepott: <strong style={{color:"var(--ink)"}}>{fmt(pot)} kr</strong>. Nå gjenstår kun klagefristen.</p>
+
+        {top3.length===0
+          ? <div className="empty">Ingen resultater ennå.</div>
+          : <div style={{display:"flex",flexDirection:"column",gap:14,marginBottom:16}}>
+            {splits.map((s,i)=>{
+              const amount = Math.round(pot*s.pct/100);
+              const w = top3[i];
+              return (
+                <div key={i} style={{borderRadius:12,padding:"12px 14px",
+                  background: i===0 ? "linear-gradient(135deg,rgba(255,206,58,.12),rgba(255,206,58,.02))" : "var(--panel2)",
+                  border:`1px solid ${i===0?"var(--gold)":"var(--line)"}`}}>
+                  <div className="between" style={{marginBottom:8,alignItems:"flex-start"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
+                      <span style={{fontSize:22,flexShrink:0}}>{s.medal}</span>
+                      <div style={{minWidth:0}}>
+                        {w ? <>
+                          <div style={{fontWeight:800,fontSize:16,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{w.nick||w.name}</div>
+                          <div className="note" style={{fontSize:11.5}}>{w.pts} poeng{w.nick?` · ${w.name}`:""}</div>
+                        </> : <div className="note">Ingen ennå</div>}
+                      </div>
+                    </div>
+                    <div style={{textAlign:"right",flexShrink:0}}>
+                      <div style={{fontWeight:800,fontSize:17,color:s.color}}>{fmt(amount)} kr</div>
+                      <div className="note" style={{fontSize:10}}>{s.label} · {s.pct}%</div>
+                    </div>
+                  </div>
+                  <div style={{height:12,background:"#0c0a22",border:"1px solid var(--line)",borderRadius:999,overflow:"hidden"}}>
+                    <div style={{height:"100%",width:s.pct+"%",background:s.color,opacity:.85}}/>
+                  </div>
+                </div>
+              );
+            })}
+          </div>}
+
+        {/* Klagefrist-påminnelse */}
+        <div style={{borderRadius:12,padding:"13px 14px",marginBottom:16,textAlign:"center",
+          background:"linear-gradient(180deg,rgba(255,45,126,.10),rgba(255,45,126,.02))",border:"1px solid var(--magenta)"}}>
+          <div style={{fontWeight:800,fontSize:14,marginBottom:4}}>⚠️ Klagefrist: onsdag 20:00</div>
+          <div className="note" style={{fontSize:13,lineHeight:1.5}}>Har du en innsigelse mot poeng eller kåringer, må den meldes inn innen onsdag kl. 20:00. Etter det regnes resultatene som endelige.</div>
         </div>
+
         <button className="btn primary" style={{width:"100%",justifyContent:"center"}} onClick={onClose}>Skjønner!</button>
       </div>
     </div>
