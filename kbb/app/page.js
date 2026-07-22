@@ -649,10 +649,11 @@ function InfoModal({ onClose, leaderboard, profiles, awards }){
             <h2 style={{fontWeight:800,fontSize:"clamp(18px,5vw,22px)",margin:"0 0 8px",letterSpacing:".02em"}}>Vi ses i EM 2028!</h2>
             <p className="note" style={{fontSize:14,lineHeight:1.6,marginBottom:8}}>Takk til alle {leaderboard?.length||""} som var med i PROGNOSESENTERET under VM 2026. Dette var moro — og vi gir oss ikke her!</p>
             <p className="note" style={{fontSize:14,lineHeight:1.6,marginBottom:16}}>Vi kommer sterkere tilbake med en <strong style={{color:"var(--ink)"}}>helt ny app til EM 2028</strong>. Følg med — så tar vi en ny runde med tipping, prestasjoner og premier. 🏆</p>
-            <div style={{borderRadius:12,padding:"12px 14px",marginBottom:16,
+            <div style={{borderRadius:12,padding:"14px 14px",marginBottom:16,
               background:"linear-gradient(135deg,rgba(139,92,255,.14),rgba(25,224,214,.10))",border:"1px solid var(--violet)"}}>
-              <div style={{fontWeight:800,fontSize:15}}>Wiik &amp; Kælle presenterer</div>
-              <div className="note" style={{fontSize:12.5,marginTop:2}}>— fortsettelsen kommer sommeren 2028</div>
+              <div style={{fontWeight:700,fontSize:11.5,letterSpacing:".06em",color:"var(--mut)",textTransform:"uppercase"}}>Wiik &amp; Kælle presenterer</div>
+              <div className="logo" style={{fontSize:"clamp(20px,6.5vw,30px)",lineHeight:1.05,margin:"3px 0 5px",wordBreak:"break-word"}}><span className="g">PROGNOSESENTERET</span></div>
+              <div className="note" style={{fontSize:12}}>— fortsettelsen kommer sommeren 2028</div>
             </div>
           </div>
 
