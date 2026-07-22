@@ -370,7 +370,12 @@ export default function Home() {
       </header>
 
       <div className="wrap" style={{paddingTop:4}}>
-        <NextMatchStrip matches={matches} onGoToPredict={()=>setTab("predict")} />
+        <SeasonOverCard leaderboard={leaderboard} onGoToLeaderboard={()=>setTab("leaderboard")} />
+        <div style={{textAlign:"center",marginBottom:12,padding:"10px 14px",borderRadius:12,
+          background:"linear-gradient(135deg,rgba(255,206,58,.16),rgba(139,92,255,.10))",
+          border:"1px solid var(--gold)",fontWeight:800,fontSize:"clamp(13px,3.6vw,15px)",letterSpacing:".02em"}}>
+          🏆 VM 2026 er ferdig — takk for i år! Resultatene er endelige.
+        </div>
         <nav className="nav">
           <button className={tab==="predict"?"on":""} onClick={()=>setTab("predict")}>Mine tips</button>
           <button className={tab==="bonus"?"on":""} onClick={()=>setTab("bonus")}>Bonus</button>
@@ -404,6 +409,27 @@ export default function Home() {
           doubleStages={doubleStages} reload={loadAll} snapshotRanks={snapshotRanks} />}
       </div>
     </>
+  );
+}
+
+/* ───────── Sesong ferdig — vinnerkort (erstatter kampstripa) ───────── */
+function SeasonOverCard({ leaderboard, onGoToLeaderboard }){
+  const top3=(leaderboard||[]).slice(0,3);
+  if(top3.length===0) return null;
+  const medal=["🥇","🥈","🥉"], col=["var(--gold)","#cdd3ea","#e08a4a"];
+  return (
+    <div onClick={onGoToLeaderboard} style={{cursor:"pointer",display:"flex",gap:8,marginBottom:12,alignItems:"stretch"}}>
+      {top3.map((w,i)=>(
+        <div key={w.id||i} style={{flex:1,minWidth:0,textAlign:"center",borderRadius:14,padding:"12px 8px",
+          background:i===0?"linear-gradient(160deg,rgba(255,206,58,.18),rgba(139,92,255,.10))":"var(--panel2)",
+          border:`1px solid ${i===0?"var(--gold)":"var(--line)"}`}}>
+          <div style={{fontSize:22,lineHeight:1,marginBottom:3}}>{medal[i]}</div>
+          <div style={{fontWeight:800,fontSize:"clamp(12px,3.2vw,14px)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{w.nick||w.name}</div>
+          <div style={{fontWeight:800,fontSize:15,color:col[i],marginTop:2}}>{w.pts} p</div>
+          <div className="note" style={{fontSize:9,textTransform:"uppercase",letterSpacing:".04em",marginTop:1}}>{i+1}. plass</div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -538,8 +564,8 @@ function InfoModal({ onClose, leaderboard, profiles, awards }){
       <div className="card" style={{maxWidth:520,width:"100%",margin:"auto"}}>
 
         {page===1 ? <>
-          <h2 style={{textAlign:"center",fontWeight:800,fontSize:"clamp(17px,4.5vw,20px)",margin:"2px 0 4px",letterSpacing:".02em"}}>🏆 Foreløpig topp 3</h2>
-          <p className="note" style={{textAlign:"center",marginBottom:14}}>Resultatene er klare og juryen er ferdig med rettingen. Premiepott: <strong style={{color:"var(--ink)"}}>{fmt(pot)} kr</strong>. Nå gjenstår kun klagefristen.</p>
+          <h2 style={{textAlign:"center",fontWeight:800,fontSize:"clamp(17px,4.5vw,20px)",margin:"2px 0 4px",letterSpacing:".02em"}}>🏆 Endelige vinnere</h2>
+          <p className="note" style={{textAlign:"center",marginBottom:14}}>Mesterskapet er over og klagefristen er utgått — dette er de <strong style={{color:"var(--ink)"}}>endelige</strong> resultatene. Premiepott: <strong style={{color:"var(--ink)"}}>{fmt(pot)} kr</strong>. Gratulerer til vinnerne!</p>
 
           {top3.length===0
             ? <div className="empty">Ingen resultater ennå.</div>
@@ -575,17 +601,17 @@ function InfoModal({ onClose, leaderboard, profiles, awards }){
             </div>}
 
           <div style={{borderRadius:12,padding:"13px 14px",marginBottom:16,textAlign:"center",
-            background:"linear-gradient(180deg,rgba(255,45,126,.10),rgba(255,45,126,.02))",border:"1px solid var(--magenta)"}}>
-            <div style={{fontWeight:800,fontSize:14,marginBottom:4}}>⚠️ Klagefrist: onsdag 20:00</div>
-            <div className="note" style={{fontSize:13,lineHeight:1.5}}>Har du en innsigelse mot poeng eller kåringer, må den meldes inn innen onsdag kl. 20:00. Etter det regnes resultatene som endelige.</div>
+            background:"linear-gradient(180deg,rgba(25,224,214,.10),rgba(25,224,214,.02))",border:"1px solid var(--teal)"}}>
+            <div style={{fontWeight:800,fontSize:14,marginBottom:4}}>✅ Resultatet er endelig</div>
+            <div className="note" style={{fontSize:13,lineHeight:1.5}}>Klagefristen er utgått og alle kåringer er låst. Tusen takk for at dere var med i PROGNOSESENTERET!</div>
           </div>
 
           <button className="btn primary" style={{width:"100%",justifyContent:"center"}} onClick={()=>setPage(2)}>Neste →</button>
         </> : <>
           <h2 style={{textAlign:"center",fontWeight:800,fontSize:"clamp(17px,4.5vw,20px)",margin:"2px 0 4px",letterSpacing:".02em"}}>👕 Prestasjonsvinnere</h2>
-          <p className="note" style={{textAlign:"center",marginBottom:14}}>Disse vinner hver sin <strong style={{color:"#7fa0ff"}}>Grans Cola X</strong>-t-skjorte — én per prestasjon!</p>
+          <p className="note" style={{textAlign:"center",marginBottom:14}}>Disse vant hver sin <strong style={{color:"#7fa0ff"}}>Grans Cola X</strong>-t-skjorte — én per prestasjon!</p>
 
-          <div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:16}}>
+          <div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:14}}>
             {prizeDefs.map(d=>{
               const w=(awards?.[d.key]||[])[0];
               return (
@@ -600,6 +626,13 @@ function InfoModal({ onClose, leaderboard, profiles, awards }){
                 </div>
               );
             })}
+          </div>
+
+          {/* Slik henter du premien */}
+          <div style={{borderRadius:12,padding:"14px 15px",marginBottom:16,
+            background:"linear-gradient(180deg,rgba(47,123,255,.12),rgba(47,123,255,.03))",border:"1px solid #2f7bff"}}>
+            <div style={{fontWeight:800,fontSize:14,marginBottom:6,textAlign:"center"}}>📮 Slik henter du t-skjorta</div>
+            <div className="note" style={{fontSize:13,lineHeight:1.55}}>Vant du en prestasjon? Send <strong style={{color:"var(--ink)"}}>navn og postadresse</strong> til <a href="mailto:jakobwii@gmail.com" style={{color:"#7fa0ff",fontWeight:700}}>jakobwii@gmail.com</a>, så kommer t-skjorta i posten. <strong style={{color:"var(--ink)"}}>Frist: 7 dager.</strong></div>
           </div>
 
           <div className="row" style={{gap:8}}>
@@ -968,6 +1001,12 @@ function Rules({ rules, bonusRules }){
   );
   return (
     <div>
+      <div className="card" style={{marginBottom:16,textAlign:"center",
+        background:"linear-gradient(135deg,rgba(255,206,58,.14),rgba(139,92,255,.08))",border:"1px solid var(--gold)"}}>
+        <div style={{fontWeight:800,fontSize:16,marginBottom:4}}>🏁 Mesterskapet er avsluttet</div>
+        <p className="note" style={{fontSize:13,lineHeight:1.55}}>VM 2026 er over og alle resultater er endelige. Reglene under står til minne om hvordan spillet fungerte. Takk for at du var med i PROGNOSESENTERET!</p>
+      </div>
+
       <div className="card" style={{marginBottom:16}}>
         <h2 className="sec">Slik fungerer det</h2>
         <p className="note" style={{lineHeight:1.65}}>
@@ -1102,7 +1141,7 @@ function Awards({ awards }){
       background:"linear-gradient(135deg,#ffd24a 0%,#f0b400 100%)",color:"#3a2c00",
       boxShadow:"0 4px 14px rgba(240,180,0,.35)"}}>
       <div style={{fontWeight:800,fontSize:13.5,lineHeight:1.3}}>Hver prestasjonsvinner får en Cola X-t-skjorte</div>
-      <div style={{fontSize:11,opacity:.85,marginTop:3}}>12 vinnere · kåres når VM er over · <span style={{fontStyle:"italic"}}>(Vi spurte om øl-spons, men endte opp med Cola X t-skjorter.)</span></div>
+      <div style={{fontSize:11,opacity:.85,marginTop:3}}>12 vinnere · kåringen er klar · <span style={{fontStyle:"italic"}}>(Vi spurte om øl-spons, men endte opp med Cola X t-skjorter.)</span></div>
     </div>
 
     {!awards ? <div className="empty">Ingen data ennå.</div> :
@@ -1110,7 +1149,7 @@ function Awards({ awards }){
       {defs.map(d=>{ const w=awards[d.key]; return <AwardCard key={d.key} def={d} w={w}/>; })}
     </div>}
 
-    <p className="note" style={{marginTop:14,textAlign:"center"}}>Topp 5 i hver kategori — lederen øverst. Oppdateres automatisk. Krever at du har tippet minst 80 % av kampene. Ved lik verdi teller flest kamper tippet, deretter høyest på tabellen.</p>
+    <p className="note" style={{marginTop:14,textAlign:"center"}}>Topp 5 i hver kategori — vinneren øverst. Endelig resultat. Krevde at du hadde tippet minst 80 % av kampene. Ved lik verdi teller flest kamper tippet, deretter høyest på tabellen.</p>
 
     {/* Diskré sponsor-bunntekst */}
     <div style={{marginTop:16,borderRadius:12,border:"1px solid #243a73",background:"#070b1c",
@@ -1251,7 +1290,7 @@ function MyStats({ me, leaderboard, matches, allPreds, rules, doubleStages, prev
   );
 
   return <div className="card"><h2 className="sec">Spillerkort</h2>
-    <p className="note" style={{marginBottom:14}}>Din egen oppsummering, basert på ferdigspilte kamper. Oppdateres automatisk.</p>
+    <p className="note" style={{marginBottom:14}}>Din egen oppsummering, basert på hele mesterskapet. Endelig resultat.</p>
     <div style={{textAlign:"center",marginBottom:16}}>
       <div style={{fontSize:"clamp(24px,7vw,34px)",fontWeight:800}}>{meRow.nick||meRow.name}</div>
       <div style={{display:"flex",justifyContent:"center",flexWrap:"wrap",gap:8,marginTop:8}}>
@@ -1455,7 +1494,7 @@ function DidYouKnow({ leaderboard, matches, allPreds, rules, bonusAnswers, allBo
   }
 
   return <div className="card"><h2 className="sec">Funfacts</h2>
-    <p className="note" style={{marginBottom:14}}>Morsom statistikk regnet ut fra alle tips og resultater. Oppdateres automatisk når nye resultater legges inn.</p>
+    <p className="note" style={{marginBottom:14}}>Morsom statistikk regnet ut fra alle tips og resultater gjennom hele mesterskapet.</p>
     {!facts.length ? <div className="empty">Ikke nok data ennå — kom tilbake når noen kamper er spilt!</div> :
     <div style={{display:"flex",flexDirection:"column",gap:10}}>
       {facts.map((f,i)=>(
@@ -1503,11 +1542,11 @@ function PrizePool({ profiles, leaderboard }){
               <div style={{height:14,background:"#0c0a22",border:"1px solid var(--line)",borderRadius:999,overflow:"hidden"}}>
                 <div style={{height:"100%",width:s.pct+"%",background:s.color,opacity:.85}}/>
               </div>
-              {winner && <div className="note" style={{marginTop:6}}>Leder nå: <strong>{winner.nick||winner.name}</strong> ({winner.pts} p)</div>}
+              {winner && <div className="note" style={{marginTop:6}}>🏆 Vinner: <strong style={{color:s.color}}>{winner.nick||winner.name}</strong> ({winner.pts} p)</div>}
             </div>
           );
         })}
-        <p className="note" style={{marginTop:8}}>Potten oppdateres automatisk når flere bekrefter innskuddet sitt. Vinnerne kåres etter siste kamp.</p>
+        <p className="note" style={{marginTop:8}}>Mesterskapet er over — dette er de endelige vinnerne. Gratulerer!</p>
       </div>
     </div>
   );
@@ -1594,9 +1633,10 @@ function Leaderboard({ rows, rules, total, isAdmin, deleteUser, editUser, prevRa
         </tr>
       ) : (
       <React.Fragment key={r.id}>
-      <tr style={{cursor:"pointer"}} onClick={()=>setOpenId(openId===r.id?null:r.id)}><td><span className={`rankbadge ${i===0?"g1":i===1?"g2":i===2?"g3":""}`}>{i+1}</span></td>
+      <tr style={{cursor:"pointer",...(i===0?{background:"linear-gradient(90deg,rgba(255,206,58,.12),transparent 70%)"}:{})}} onClick={()=>setOpenId(openId===r.id?null:r.id)}><td><span className={`rankbadge ${i===0?"g1":i===1?"g2":i===2?"g3":""}`}>{i+1}</span></td>
         <td className="n" style={{fontSize:12}}>{mv(r.id,i+1)}</td>
         <td>{openId===r.id?"▾ ":"▸ "}{r.nick||r.name}{r.nick&&<span className="note"> · {r.name}</span>}
+          {i===0 && <span style={{display:"inline-block",marginLeft:6,fontSize:9.5,fontWeight:800,letterSpacing:".05em",textTransform:"uppercase",color:"#3a2c00",background:"var(--gold)",borderRadius:999,padding:"2px 8px",verticalAlign:"middle"}}>🏆 Vinner</span>}
           {(()=>{ const f=form(r.id); if(!f.length) return null;
             return <div style={{display:"flex",gap:3,marginTop:4}}>{f.map((x,fi)=>{
               const c=x.kind==="eksakt"?"var(--teal)":x.kind==="utfall"?"var(--gold)":"var(--magenta)";
