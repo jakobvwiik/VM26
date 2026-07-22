@@ -611,7 +611,7 @@ function InfoModal({ onClose, leaderboard, profiles, awards }){
           </div>
 
           <button className="btn primary" style={{width:"100%",justifyContent:"center"}} onClick={()=>setPage(2)}>Neste →</button>
-        </> : <>
+        </> : page===2 ? <>
           <h2 style={{textAlign:"center",fontWeight:800,fontSize:"clamp(17px,4.5vw,20px)",margin:"2px 0 4px",letterSpacing:".02em"}}>👕 Prestasjonsvinnere</h2>
           <p className="note" style={{textAlign:"center",marginBottom:14}}>Disse vant hver sin <strong style={{color:"#7fa0ff"}}>Grans Cola X</strong>-t-skjorte — én per prestasjon!</p>
 
@@ -641,6 +641,23 @@ function InfoModal({ onClose, leaderboard, profiles, awards }){
 
           <div className="row" style={{gap:8}}>
             <button className="btn" style={{flex:"0 0 auto"}} onClick={()=>setPage(1)}>← Tilbake</button>
+            <button className="btn primary" style={{flex:1,justifyContent:"center"}} onClick={()=>setPage(3)}>Neste →</button>
+          </div>
+        </> : <>
+          <div style={{textAlign:"center",padding:"6px 0 2px"}}>
+            <div style={{fontSize:44,lineHeight:1,marginBottom:6}}>🇪🇺⚽</div>
+            <h2 style={{fontWeight:800,fontSize:"clamp(18px,5vw,22px)",margin:"0 0 8px",letterSpacing:".02em"}}>Vi ses i EM 2028!</h2>
+            <p className="note" style={{fontSize:14,lineHeight:1.6,marginBottom:8}}>Takk til alle {leaderboard?.length||""} som var med i PROGNOSESENTERET under VM 2026. Dette var moro — og vi gir oss ikke her!</p>
+            <p className="note" style={{fontSize:14,lineHeight:1.6,marginBottom:16}}>Vi kommer sterkere tilbake med en <strong style={{color:"var(--ink)"}}>helt ny app til EM 2028</strong>. Følg med — så tar vi en ny runde med tipping, prestasjoner og premier. 🏆</p>
+            <div style={{borderRadius:12,padding:"12px 14px",marginBottom:16,
+              background:"linear-gradient(135deg,rgba(139,92,255,.14),rgba(25,224,214,.10))",border:"1px solid var(--violet)"}}>
+              <div style={{fontWeight:800,fontSize:15}}>Wiik &amp; Kælle presenterer</div>
+              <div className="note" style={{fontSize:12.5,marginTop:2}}>— fortsettelsen kommer sommeren 2028</div>
+            </div>
+          </div>
+
+          <div className="row" style={{gap:8}}>
+            <button className="btn" style={{flex:"0 0 auto"}} onClick={()=>setPage(2)}>← Tilbake</button>
             <button className="btn primary" style={{flex:1,justifyContent:"center"}} onClick={onClose}>Skjønner!</button>
           </div>
         </>}
@@ -1642,7 +1659,7 @@ function Leaderboard({ rows, rules, total, isAdmin, deleteUser, editUser, prevRa
         <td>{openId===r.id?"▾ ":"▸ "}{r.nick||r.name}{r.nick&&<span className="note"> · {r.name}</span>}
           {i<=2 && (()=>{
             const badge=[
-              {txt:"🏆 Vinner", bg:"var(--gold)",  fg:"#3a2c00"},
+              {txt:"🏆 Gull",   bg:"var(--gold)",  fg:"#3a2c00"},
               {txt:"🥈 Sølv",   bg:"#cdd3ea",       fg:"#20232e"},
               {txt:"🥉 Bronse", bg:"#e08a4a",       fg:"#2a1400"},
             ][i];
