@@ -370,7 +370,7 @@ export default function Home() {
       </header>
 
       <div className="wrap" style={{paddingTop:4}}>
-        <SeasonOverCard leaderboard={leaderboard} onGoToLeaderboard={()=>setTab("leaderboard")} />
+        <SeasonOverCard leaderboard={leaderboard} profiles={profiles} onGoToLeaderboard={()=>setTab("leaderboard")} />
         <div style={{textAlign:"center",marginBottom:12,padding:"10px 14px",borderRadius:12,
           background:"linear-gradient(135deg,rgba(255,206,58,.16),rgba(139,92,255,.10))",
           border:"1px solid var(--gold)",fontWeight:800,fontSize:"clamp(13px,3.6vw,15px)",letterSpacing:".02em"}}>
@@ -413,10 +413,13 @@ export default function Home() {
 }
 
 /* ───────── Sesong ferdig — vinnerkort (erstatter kampstripa) ───────── */
-function SeasonOverCard({ leaderboard, onGoToLeaderboard }){
+function SeasonOverCard({ leaderboard, profiles, onGoToLeaderboard }){
   const top3=(leaderboard||[]).slice(0,3);
   if(top3.length===0) return null;
-  const medal=["🥇","🥈","🥉"], col=["var(--gold)","#cdd3ea","#e08a4a"];
+  const medal=["🥇","🥈","🥉"], col=["var(--gold)","#cdd3ea","#e08a4a"], pct=[70,20,10];
+  const paid=(profiles||[]).filter(p=>p.paid || isAdminEmail(p.email));
+  const pot=paid.length*200;
+  const fmt=n=>n.toLocaleString("no-NO");
   return (
     <div onClick={onGoToLeaderboard} style={{cursor:"pointer",display:"flex",gap:8,marginBottom:12,alignItems:"stretch"}}>
       {top3.map((w,i)=>(
@@ -426,6 +429,7 @@ function SeasonOverCard({ leaderboard, onGoToLeaderboard }){
           <div style={{fontSize:22,lineHeight:1,marginBottom:3}}>{medal[i]}</div>
           <div style={{fontWeight:800,fontSize:"clamp(12px,3.2vw,14px)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{w.nick||w.name}</div>
           <div style={{fontWeight:800,fontSize:15,color:col[i],marginTop:2}}>{w.pts} p</div>
+          {pot>0 && <div style={{fontWeight:800,fontSize:"clamp(11px,3vw,13px)",marginTop:2}}>{fmt(Math.round(pot*pct[i]/100))} kr</div>}
           <div className="note" style={{fontSize:9,textTransform:"uppercase",letterSpacing:".04em",marginTop:1}}>{i+1}. plass</div>
         </div>
       ))}
@@ -632,7 +636,7 @@ function InfoModal({ onClose, leaderboard, profiles, awards }){
           <div style={{borderRadius:12,padding:"14px 15px",marginBottom:16,
             background:"linear-gradient(180deg,rgba(47,123,255,.12),rgba(47,123,255,.03))",border:"1px solid #2f7bff"}}>
             <div style={{fontWeight:800,fontSize:14,marginBottom:6,textAlign:"center"}}>📮 Slik henter du t-skjorta</div>
-            <div className="note" style={{fontSize:13,lineHeight:1.55}}>Vant du en prestasjon? Send <strong style={{color:"var(--ink)"}}>navn og postadresse</strong> til <a href="mailto:jakobwii@gmail.com" style={{color:"#7fa0ff",fontWeight:700}}>jakobwii@gmail.com</a>, så kommer t-skjorta i posten. <strong style={{color:"var(--ink)"}}>Frist: 7 dager.</strong></div>
+            <div className="note" style={{fontSize:13,lineHeight:1.55,textAlign:"center"}}>Vant du en prestasjon? Send <strong style={{color:"var(--ink)"}}>navn og postadresse</strong> til <a href="mailto:jakobwii@gmail.com" style={{color:"#7fa0ff",fontWeight:700}}>jakobwii@gmail.com</a>, så kommer t-skjorta i posten. <strong style={{color:"var(--ink)"}}>Frist: 7 dager.</strong></div>
           </div>
 
           <div className="row" style={{gap:8}}>
@@ -1633,10 +1637,17 @@ function Leaderboard({ rows, rules, total, isAdmin, deleteUser, editUser, prevRa
         </tr>
       ) : (
       <React.Fragment key={r.id}>
-      <tr style={{cursor:"pointer",...(i===0?{background:"linear-gradient(90deg,rgba(255,206,58,.12),transparent 70%)"}:{})}} onClick={()=>setOpenId(openId===r.id?null:r.id)}><td><span className={`rankbadge ${i===0?"g1":i===1?"g2":i===2?"g3":""}`}>{i+1}</span></td>
+      <tr style={{cursor:"pointer",...(i===0?{background:"linear-gradient(90deg,rgba(255,206,58,.12),transparent 70%)"}:i===1?{background:"linear-gradient(90deg,rgba(205,211,234,.08),transparent 70%)"}:i===2?{background:"linear-gradient(90deg,rgba(224,138,74,.08),transparent 70%)"}:{})}} onClick={()=>setOpenId(openId===r.id?null:r.id)}><td><span className={`rankbadge ${i===0?"g1":i===1?"g2":i===2?"g3":""}`}>{i+1}</span></td>
         <td className="n" style={{fontSize:12}}>{mv(r.id,i+1)}</td>
         <td>{openId===r.id?"▾ ":"▸ "}{r.nick||r.name}{r.nick&&<span className="note"> · {r.name}</span>}
-          {i===0 && <span style={{display:"inline-block",marginLeft:6,fontSize:9.5,fontWeight:800,letterSpacing:".05em",textTransform:"uppercase",color:"#3a2c00",background:"var(--gold)",borderRadius:999,padding:"2px 8px",verticalAlign:"middle"}}>🏆 Vinner</span>}
+          {i<=2 && (()=>{
+            const badge=[
+              {txt:"🏆 Vinner", bg:"var(--gold)",  fg:"#3a2c00"},
+              {txt:"🥈 Sølv",   bg:"#cdd3ea",       fg:"#20232e"},
+              {txt:"🥉 Bronse", bg:"#e08a4a",       fg:"#2a1400"},
+            ][i];
+            return <div style={{marginTop:4}}><span style={{display:"inline-block",fontSize:9.5,fontWeight:800,letterSpacing:".05em",textTransform:"uppercase",color:badge.fg,background:badge.bg,borderRadius:999,padding:"2px 9px",whiteSpace:"nowrap"}}>{badge.txt}</span></div>;
+          })()}
           {(()=>{ const f=form(r.id); if(!f.length) return null;
             return <div style={{display:"flex",gap:3,marginTop:4}}>{f.map((x,fi)=>{
               const c=x.kind==="eksakt"?"var(--teal)":x.kind==="utfall"?"var(--gold)":"var(--magenta)";
