@@ -645,7 +645,7 @@ function InfoModal({ onClose, leaderboard, profiles, awards }){
           </div>
         </> : <>
           <div style={{textAlign:"center",padding:"6px 0 2px"}}>
-            <div style={{fontSize:44,lineHeight:1,marginBottom:6}}>🇪🇺⚽</div>
+            <div style={{fontSize:44,lineHeight:1,marginBottom:6}}>⚽</div>
             <h2 style={{fontWeight:800,fontSize:"clamp(18px,5vw,22px)",margin:"0 0 8px",letterSpacing:".02em"}}>Vi ses i EM 2028!</h2>
             <p className="note" style={{fontSize:14,lineHeight:1.6,marginBottom:8}}>Takk til alle {leaderboard?.length||""} som var med i PROGNOSESENTERET under VM 2026. Dette var moro — og vi gir oss ikke her!</p>
             <p className="note" style={{fontSize:14,lineHeight:1.6,marginBottom:16}}>Vi kommer sterkere tilbake med en <strong style={{color:"var(--ink)"}}>helt ny app til EM 2028</strong>. Følg med — så tar vi en ny runde med tipping, prestasjoner og premier. 🏆</p>
